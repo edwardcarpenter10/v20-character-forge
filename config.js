@@ -6,7 +6,13 @@ window.FORGE_CONFIG = {
   game: "Vampire: The Masquerade 20th Anniversary Edition",
   shortGame: "a chronicle of hunger and consequence",
   description: "A free, local-first V20 character creator for vampires, ghouls, revenants, and mortal NPCs, with advancement, JSON saves, and printable records.",
-  theme: { accent: "#76111d", accent2: "#a87b46", bg: "#171313", bgDeep: "#080606" },
+  logo: { kind: "vampire" },
+  theme: { accent: "#76111d", accent2: "#b08850", bg: "#171313", bgDeep: "#080606", panel: "#211719", panel2: "#2b2020", paper: "#e9e0d4", paper2: "#d0beb5", ink: "#211517", muted: "#b4a2a1", line: "#68484b", paperMuted: "#624e4e", paperLine: "#876b68" },
+  terminologySets: [
+    { id: "kindred", label: "Camarilla & Anarch", description: "Kindred, Clan, Sect, sire, Humanity or Path, and coterie.", terms: { fields: { clan: "Clan", sect: "Sect", sire: "Sire", moralityName: "Humanity / Path", coterie: "Coterie", domitor: "Regnant / Domitor" }, groups: { disciplines: "Disciplines", virtues: "Virtues" }, specials: { morality: "Humanity / Path", blood: "Blood Pool", vitae: "Vitae" }, ui: { advantagesHeading: "Advantages and Kindred traits" } } },
+    { id: "sabbat", label: "Sabbat", description: "Cainite, Clan or bloodline, sire, Path of Enlightenment, and pack.", terms: { fields: { clan: "Clan / Bloodline", sect: "Sect", sire: "Sire", moralityName: "Path of Enlightenment", coterie: "Pack", domitor: "Domitor" }, groups: { disciplines: "Disciplines", virtues: "Virtues / Instincts" }, specials: { morality: "Path Rating", blood: "Blood Pool", vitae: "Vitae" }, ui: { advantagesHeading: "Advantages and Cainite traits" } } },
+    { id: "neutral", label: "Independent & neutral", description: "Vampire, lineage, allegiance, creator, morality, and group.", terms: { fields: { clan: "Lineage", sect: "Allegiance", sire: "Creator", moralityName: "Morality", coterie: "Group", domitor: "Patron" }, groups: { disciplines: "Vampiric Powers", virtues: "Moral Traits" }, specials: { morality: "Morality Rating", blood: "Blood Reserve", vitae: "Vitae" }, ui: { advantagesHeading: "Advantages and vampiric traits" } } }
+  ],
   advancedTool: { href: "advanced.html", label: "Advanced Vampire workspace" },
   identityFields: [
     { key: "name", label: "Name", placeholder: "Character name" },

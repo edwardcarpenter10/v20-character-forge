@@ -25,10 +25,45 @@
 
   document.title = C.title;
   document.querySelector('meta[name="description"]').content = C.description;
-  document.documentElement.style.setProperty("--accent", C.theme.accent);
-  document.documentElement.style.setProperty("--accent-2", C.theme.accent2);
-  document.documentElement.style.setProperty("--bg", C.theme.bg);
-  document.documentElement.style.setProperty("--bg-deep", C.theme.bgDeep);
+  document.querySelector('meta[name="theme-color"]').content = C.theme.bgDeep;
+  document.documentElement.dataset.splat = C.logo?.kind || C.code;
+  const themeProperties = {
+    accent: "--accent",
+    accent2: "--accent-2",
+    bg: "--bg",
+    bgDeep: "--bg-deep",
+    panel: "--panel",
+    panel2: "--panel-2",
+    paper: "--paper",
+    paper2: "--paper-2",
+    ink: "--ink",
+    muted: "--muted",
+    line: "--line",
+    paperMuted: "--paper-muted",
+    paperLine: "--paper-line"
+  };
+  Object.entries(themeProperties).forEach(([key, property]) => {
+    if (C.theme[key]) document.documentElement.style.setProperty(property, C.theme[key]);
+  });
+
+  const SIGIL_GLYPHS = {
+    mage: '<path d="M32 15l3.8 12.2L49 32l-13.2 4.8L32 49l-3.8-12.2L15 32l13.2-4.8Z"/><circle cx="32" cy="32" r="3.4"/>',
+    vampire: '<path d="M32 14c-4.2 8.1-11 14.2-11 22.1a11 11 0 0 0 22 0C43 28.2 36.2 22.1 32 14Z"/><path d="m26.5 33.5 5.5 11 5.5-11"/>',
+    werewolf: '<path d="M39.5 17.5A16.5 16.5 0 1 0 47 43a14.5 14.5 0 1 1-7.5-25.5Z"/><path d="m35 27 9-6m-7 13 11-7m-10 14 9-6"/>',
+    wraith: '<path d="M42 20a16 16 0 0 0-21 3m-3 6a16 16 0 0 0 24 16m4-7a16 16 0 0 0-1-12"/><path d="M32 18v19l-5 9m5-9 5 9"/>',
+    changeling: '<path d="M32 32C25 18 17 18 17 27c0 7 7 9 15 5Zm0 0c7-14 15-14 15-5 0 7-7 9-15 5Zm0 0c-7 14-15 14-15 5 0-7 7-9 15-5Zm0 0c7 14 15 14 15 5 0-7-7-9-15-5Z"/><circle cx="32" cy="32" r="2.6"/>'
+  };
+
+  function renderSigil(className = "") {
+    const kind = C.logo?.kind || C.code;
+    const glyph = SIGIL_GLYPHS[kind] || SIGIL_GLYPHS.mage;
+    return `<svg class="forge-sigil ${attr(className)}" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <path class="sigil-frame" d="M32 3 51 11 61 32 53 52 32 61 12 53 3 32 11 12Z"/>
+      <circle class="sigil-ring" cx="32" cy="32" r="21"/>
+      <path class="sigil-ticks" d="M32 7v5m25 20h-5M32 57v-5M7 32h5"/>
+      <g class="sigil-glyph">${glyph}</g>
+    </svg>`;
+  }
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const uid = () => Math.random().toString(36).slice(2, 10);
@@ -42,6 +77,11 @@
   const dotsText = (value, max = 5) => `${"●".repeat(Math.max(0, value))}${"○".repeat(Math.max(0, max - value))}`;
   const profile = () => C.profiles.find(p => p.id === state.profileId) || C.profiles[0];
   const groupId = (kind, name) => `${kind}:${name}`;
+  const terminology = () => (C.terminologySets || []).find(set => set.id === state.terminologyId) || (C.terminologySets || [])[0] || { terms: {} };
+  const fieldLabel = field => terminology().terms?.fields?.[field.key] || field.label;
+  const groupLabel = group => terminology().terms?.groups?.[group.id] || group.label;
+  const specialLabel = special => terminology().terms?.specials?.[special.id] || special.label;
+  const uiTerm = (key, fallback) => terminology().terms?.ui?.[key] || fallback;
 
   function allGroups(p = profile()) {
     const groups = [];
@@ -70,6 +110,7 @@
       schema: 2,
       forge: C.code,
       profileId: p.id,
+      terminologyId: C.terminologySets?.[0]?.id || "default",
       buildMode: "standard",
       identity: { name: "", player: "", chronicle: "", concept: "", nature: "", demeanor: "" },
       priorities: {
@@ -232,11 +273,11 @@
       }
       const cost = extra * Number(g.freebieCost || 0);
       charge(g.budget, cost);
-      lines.push({ label: g.label, spent, allowance, extra, cost, budget: g.budget });
-      if (spent < allowance && state.buildMode !== "open") warnings.push({ type: "bad", text: `${g.label}: spend ${allowance - spent} more creation dot${allowance - spent === 1 ? "" : "s"}.` });
+      lines.push({ label: groupLabel(g), spent, allowance, extra, cost, budget: g.budget });
+      if (spent < allowance && state.buildMode !== "open") warnings.push({ type: "bad", text: `${groupLabel(g)}: spend ${allowance - spent} more creation dot${allowance - spent === 1 ? "" : "s"}.` });
       if (g.creationCap) {
         const over = g.traits.filter(t => baseRating(g.id, t) > g.creationCap).concat((state.customRatings[g.id] || []).filter(x => Number(x.base || 0) > g.creationCap).map(x => x.name));
-        if (over.length) warnings.push({ type: "warn", text: `${g.label}: ratings above ${g.creationCap} are correctly charged as freebies (${over.join(", ")}).` });
+        if (over.length) warnings.push({ type: "warn", text: `${groupLabel(g)}: ratings above ${g.creationCap} are correctly charged as freebies (${over.join(", ")}).` });
       }
     });
     (p.itemGroups || []).forEach(g => {
@@ -246,8 +287,8 @@
       const extra = Math.max(0, spent - allowance);
       const cost = extra * Number(g.freebieCost || 0);
       charge(g.budget, cost);
-      lines.push({ label: g.label, spent, allowance, extra, cost, budget: g.budget });
-      if (spent < allowance && g.exact !== false && state.buildMode !== "open") warnings.push({ type: "bad", text: `${g.label}: allocate ${allowance - spent} more point${allowance - spent === 1 ? "" : "s"}.` });
+      lines.push({ label: groupLabel(g), spent, allowance, extra, cost, budget: g.budget });
+      if (spent < allowance && g.exact !== false && state.buildMode !== "open") warnings.push({ type: "bad", text: `${groupLabel(g)}: allocate ${allowance - spent} more point${allowance - spent === 1 ? "" : "s"}.` });
       if (g.maxCreationRating) creationItems.filter(x => Number(x.rating || x.level || 1) > g.maxCreationRating).forEach(x => warnings.push({ type: "bad", text: `${x.name || g.itemLabel} exceeds the standard starting limit of ${g.maxCreationRating}.` }));
     });
     (p.specials || []).forEach(s => {
@@ -256,8 +297,8 @@
       const extra = Math.max(0, value - start);
       const cost = extra * Number(s.freebieCost || 0);
       charge(s.budget, cost);
-      if (cost) lines.push({ label: s.label, spent: value, allowance: start, extra, cost, budget: s.budget });
-      if (value < Number(s.min ?? 0) || value > Number(s.max ?? 10)) warnings.push({ type: "bad", text: `${s.label} must be between ${s.min ?? 0} and ${s.max ?? 10}.` });
+      if (cost) lines.push({ label: specialLabel(s), spent: value, allowance: start, extra, cost, budget: s.budget });
+      if (value < Number(s.min ?? 0) || value > Number(s.max ?? 10)) warnings.push({ type: "bad", text: `${specialLabel(s)} must be between ${s.min ?? 0} and ${s.max ?? 10}.` });
     });
     const meritCost = state.merits.reduce((sum, x) => sum + Number(x.cost || 0), 0);
     const flawTotal = state.flaws.reduce((sum, x) => sum + Number(x.cost || 0), 0);
@@ -299,7 +340,7 @@
 
   function renderTop() {
     return `<header class="topbar">
-      <div class="brand"><div class="brand-mark"><span>${esc(C.mark)}</span></div><div class="brand-copy"><strong>${esc(C.title)}</strong><small>Lantern and Lever · local-first character tool</small></div></div>
+      <div class="brand"><div class="brand-mark">${renderSigil()}</div><div class="brand-copy"><strong>${esc(C.title)}</strong><small>Lantern &amp; Lever · World of Darkness character forge</small></div></div>
       <div class="top-actions"><span class="save-state">${esc(saveMessage)}</span>
         ${C.advancedTool ? `<a class="secondary-action tool-link" href="${attr(C.advancedTool.href)}">${esc(C.advancedTool.label)}</a>` : ""}
         <button type="button" class="secondary-action" data-action="import">Import</button>
@@ -319,9 +360,16 @@
   function identityField(field) {
     const value = state.identity[field.key] ?? "";
     const help = field.help ? `<small>${esc(field.help)}</small>` : "";
-    if (field.type === "select") return `<label class="field"><span>${esc(field.label)}</span><select data-bind="identity.${attr(field.key)}"><option value="">Choose…</option>${optionList(field.options || [], value)}</select>${help}</label>`;
-    if (field.type === "textarea") return `<label class="field"><span>${esc(field.label)}</span><textarea data-bind="identity.${attr(field.key)}" placeholder="${attr(field.placeholder || "")}">${esc(value)}</textarea>${help}</label>`;
-    return `<label class="field"><span>${esc(field.label)}</span><input data-bind="identity.${attr(field.key)}" value="${attr(value)}" placeholder="${attr(field.placeholder || "")}">${help}</label>`;
+    const label = fieldLabel(field);
+    if (field.type === "select") return `<label class="field"><span>${esc(label)}</span><select data-bind="identity.${attr(field.key)}"><option value="">Choose…</option>${optionList(field.options || [], value)}</select>${help}</label>`;
+    if (field.type === "textarea") return `<label class="field"><span>${esc(label)}</span><textarea data-bind="identity.${attr(field.key)}" placeholder="${attr(field.placeholder || "")}">${esc(value)}</textarea>${help}</label>`;
+    return `<label class="field"><span>${esc(label)}</span><input data-bind="identity.${attr(field.key)}" value="${attr(value)}" placeholder="${attr(field.placeholder || "")}">${help}</label>`;
+  }
+
+  function renderTerminology() {
+    const sets = C.terminologySets || [];
+    if (!sets.length) return "";
+    return `<section class="terminology-panel"><header><div><span class="eyebrow">Language</span><h3>Terminology set</h3></div><p>Choose the faction or sect vocabulary used on screen and on the printed sheet. This changes labels only—not rules, costs, or saved ratings.</p></header><div class="terminology-options" role="group" aria-label="Terminology set">${sets.map(set => `<button type="button" data-action="terminology" data-terminology="${attr(set.id)}" class="${set.id === state.terminologyId ? "selected" : ""}" aria-pressed="${set.id === state.terminologyId}"><b>${esc(set.label)}</b><span>${esc(set.description)}</span></button>`).join("")}</div></section>`;
   }
 
   function renderFoundation() {
@@ -329,6 +377,7 @@
     const fields = [...(C.identityFields || []), ...(p.identityFields || [])];
     return `<div class="step-heading"><div><span class="eyebrow">Step 1</span><h2>Choose the kind of character</h2></div><p>Each template carries its own starting pools and relevant supernatural traits. Storyteller Open keeps the rules visible without enforcing budgets.</p></div>
       <div class="mode-grid">${C.profiles.map(x => `<button class="mode-card ${x.id === p.id ? "selected" : ""}" type="button" data-action="profile" data-profile="${attr(x.id)}"><b>${esc(x.label)}</b><span>${esc(x.description)}</span><em>${esc(x.category)}</em></button>`).join("")}</div>
+      ${renderTerminology()}
       <div class="section-card"><header><div><h3>Build method</h3><p>Choose how strictly the creation ledger should interpret the starting package.</p></div></header><div class="section-body"><label class="field"><span>Creation mode</span><select data-bind="buildMode">
         <option value="standard" ${state.buildMode === "standard" ? "selected" : ""}>Standard starting character</option>
         <option value="experienced" ${state.buildMode === "experienced" ? "selected" : ""}>Experienced character (standard creation + XP)</option>
@@ -348,7 +397,7 @@
     const budgetClass = spent > allowance ? "over" : spent === allowance ? "ok" : "";
     const fixed = g.traits.map(trait => `<div class="trait-row"><span>${esc(trait)}</span>${renderDots(g, trait)}</div>`).join("");
     const custom = (state.customRatings[g.id] || []).map(row => `<div class="trait-row"><span>${esc(row.name)}<small>Custom</small></span>${renderDots(g, row.id)}<button class="icon-button" type="button" data-action="remove-custom" data-group="${attr(g.id)}" data-id="${row.id}" aria-label="Remove ${attr(row.name)}">×</button></div>`).join("");
-    return `<section class="trait-column"><header><h3>${esc(g.label)}</h3><span class="budget-label ${budgetClass}">${spent} / ${allowance}</span></header>${fixed}${custom}
+    return `<section class="trait-column"><header><h3>${esc(groupLabel(g))}</h3><span class="budget-label ${budgetClass}">${spent} / ${allowance}</span></header>${fixed}${custom}
       <div class="field-grid two"><label class="field"><span>Custom trait</span><input data-ui-custom="${attr(g.id)}" value="${attr(state.ui.customNames[g.id] || "")}" placeholder="Name"></label><button class="button light add-row" type="button" data-action="add-custom" data-group="${attr(g.id)}">Add</button></div>
     </section>`;
   }
@@ -369,7 +418,7 @@
 
   function renderRatedGroup(g) {
     const spent = groupSpend(g);
-    return `<section class="rated-list"><header><h3>${esc(g.label)}</h3><span class="budget-label ${spent > Number(g.pool || 0) ? "over" : spent === Number(g.pool || 0) ? "ok" : ""}">${spent} / ${Number(g.pool || 0)}</span></header>
+    return `<section class="rated-list"><header><h3>${esc(groupLabel(g))}</h3><span class="budget-label ${spent > Number(g.pool || 0) ? "over" : spent === Number(g.pool || 0) ? "ok" : ""}">${spent} / ${Number(g.pool || 0)}</span></header>
       ${g.traits.map(trait => `<div class="trait-row"><span>${esc(trait)}</span>${renderDots(g, trait)}</div>`).join("")}
       ${(state.customRatings[g.id] || []).map(row => `<div class="trait-row"><span>${esc(row.name)}<small>Custom</small></span>${renderDots(g, row.id)}<button class="icon-button" type="button" data-action="remove-custom" data-group="${attr(g.id)}" data-id="${row.id}" aria-label="Remove ${attr(row.name)}">×</button></div>`).join("")}
       <div class="field-grid two"><label class="field"><span>Custom trait</span><input data-ui-custom="${attr(g.id)}" value="${attr(state.ui.customNames[g.id] || "")}" placeholder="Name"></label><button class="button light add-row" type="button" data-action="add-custom" data-group="${attr(g.id)}">Add</button></div>
@@ -380,7 +429,7 @@
   function renderItemGroup(g) {
     const items = state.items[g.id] || [];
     const spent = items.filter(x => x.origin !== "xp").reduce((sum, x) => sum + Number(x.rating || x.level || 1), 0);
-    return `<section class="rated-list"><header><h3>${esc(g.label)}</h3><span class="budget-label ${spent > Number(g.pool || 0) ? "over" : spent === Number(g.pool || 0) ? "ok" : ""}">${spent} / ${Number(g.pool || 0)}</span></header>
+    return `<section class="rated-list"><header><h3>${esc(groupLabel(g))}</h3><span class="budget-label ${spent > Number(g.pool || 0) ? "over" : spent === Number(g.pool || 0) ? "ok" : ""}">${spent} / ${Number(g.pool || 0)}</span></header>
       <div class="list-table">${items.map(row => `<div class="list-row"><input data-item-field="name" data-item-group="${attr(g.id)}" data-id="${row.id}" value="${attr(row.name)}" aria-label="${attr(g.itemLabel || "Trait")} name"><select data-item-field="source" data-item-group="${attr(g.id)}" data-id="${row.id}" aria-label="Source">${optionList(g.sources || ["Core", "Custom"], row.source)}</select><input type="number" min="1" max="${g.max || 10}" data-item-field="rating" data-item-group="${attr(g.id)}" data-id="${row.id}" value="${Number(row.rating || row.level || 1)}" aria-label="Rating"><button class="icon-button" type="button" data-action="remove-item" data-group="${attr(g.id)}" data-id="${row.id}" aria-label="Remove">×</button></div>`).join("")}</div>
       <button class="button light small add-row" type="button" data-action="add-item" data-group="${attr(g.id)}">Add ${esc(g.itemLabel || "entry")}</button>
       ${g.note ? `<p class="rule-note">${esc(g.note)}</p>` : ""}
@@ -390,11 +439,11 @@
   function renderAdvantages() {
     const p = profile();
     const groups = allGroups().filter(g => !["attribute", "ability"].includes(g.kind));
-    return `<div class="step-heading"><div><span class="eyebrow">Step 4</span><h2>Advantages and supernatural traits</h2></div><p>The selected template determines which powers, relationships, and pools belong here. Custom entries keep supplement and chronicle material usable.</p></div>
+    return `<div class="step-heading"><div><span class="eyebrow">Step 4</span><h2>${esc(uiTerm("advantagesHeading", "Advantages and supernatural traits"))}</h2></div><p>The selected template determines which powers, relationships, and pools belong here. Custom entries keep supplement and chronicle material usable.</p></div>
       <div class="advantages-grid">${groups.map(renderRatedGroup).join("")}${(p.itemGroups || []).map(renderItemGroup).join("")}</div>
       ${(p.specials || []).length ? `<div class="section-card"><header><div><h3>Core ratings</h3><p>Starting values come from the template and selected lineage, role, or affiliation.</p></div></header><div class="section-body"><div class="special-grid">${p.specials.map(s => {
         const total = Number(state.specialBase[s.id] || 0) + Number(state.specialXp[s.id] || 0);
-        return `<div class="special-card"><label for="special-${attr(s.id)}">${esc(s.label)}</label><strong>${total}${state.specialXp[s.id] ? ` <small>(+${state.specialXp[s.id]} XP)</small>` : ""}</strong><input id="special-${attr(s.id)}" type="number" min="${s.min ?? 0}" max="${s.max ?? 10}" data-special="${attr(s.id)}" value="${Number(state.specialBase[s.id] ?? specialDefault(s))}"><small>${esc(s.help || `Standard start: ${specialDefault(s)}`)}</small></div>`;
+        return `<div class="special-card"><label for="special-${attr(s.id)}">${esc(specialLabel(s))}</label><strong>${total}${state.specialXp[s.id] ? ` <small>(+${state.specialXp[s.id]} XP)</small>` : ""}</strong><input id="special-${attr(s.id)}" type="number" min="${s.min ?? 0}" max="${s.max ?? 10}" data-special="${attr(s.id)}" value="${Number(state.specialBase[s.id] ?? specialDefault(s))}"><small>${esc(s.help || `Standard start: ${specialDefault(s)}`)}</small></div>`;
       }).join("")}</div></div></div>` : ""}
       ${p.advantageNote ? `<p class="rule-note">${esc(p.advantageNote)}</p>` : ""}`;
   }
@@ -415,7 +464,7 @@
   }
   function identityFieldFromNotes(field) {
     const value = state.notes[field.key] || "";
-    return `<label class="field"><span>${esc(field.label)}</span><textarea data-bind="notes.${attr(field.key)}" placeholder="${attr(field.placeholder || "")}">${esc(value)}</textarea>${field.help ? `<small>${esc(field.help)}</small>` : ""}</label>`;
+    return `<label class="field"><span>${esc(fieldLabel(field))}</span><textarea data-bind="notes.${attr(field.key)}" placeholder="${attr(field.placeholder || "")}">${esc(value)}</textarea>${field.help ? `<small>${esc(field.help)}</small>` : ""}</label>`;
   }
 
   function xpOptions() {
@@ -423,10 +472,10 @@
     const rows = [];
     allGroups(p).forEach(g => {
       if (g.xp === false) return;
-      g.traits.forEach(t => rows.push({ group: g.id, trait: t, label: `${g.label} · ${t}` }));
-      (state.customRatings[g.id] || []).forEach(t => rows.push({ group: g.id, trait: t.id, label: `${g.label} · ${t.name}` }));
+      g.traits.forEach(t => rows.push({ group: g.id, trait: t, label: `${groupLabel(g)} · ${t}` }));
+      (state.customRatings[g.id] || []).forEach(t => rows.push({ group: g.id, trait: t.id, label: `${groupLabel(g)} · ${t.name}` }));
     });
-    (p.specials || []).filter(s => s.xp !== false).forEach(s => rows.push({ group: `special:${s.id}`, trait: s.id, label: s.label }));
+    (p.specials || []).filter(s => s.xp !== false).forEach(s => rows.push({ group: `special:${s.id}`, trait: s.id, label: specialLabel(s) }));
     return rows;
   }
   function xpCost(groupIdValue, traitValue) {
@@ -476,7 +525,7 @@
           <button class="button primary" type="button" data-action="buy-xp" ${!selected || state.xp.available < cost ? "disabled" : ""}>Purchase next dot</button>
         </div></section>
         ${selectedItemGroup ? `<section class="section-card"><header><div><h3>Learn a new ${esc(selectedItemGroup.itemLabel || "power")}</h3><p>Item-based powers use level and source multipliers.</p></div></header><div class="section-body">
-          <div class="field-grid two"><label class="field"><span>Type</span><select data-ui="itemGroup">${optionList(xpItemGroups.map(g => ({ value: g.id, label: g.label })), selectedItemGroup.id)}</select></label><label class="field"><span>Name</span><input data-ui="itemName" value="${attr(state.ui.itemName)}"></label><label class="field"><span>Level</span><input type="number" min="1" max="5" data-ui="itemLevel" value="${Number(state.ui.itemLevel || 1)}"></label><label class="field"><span>Source</span><select data-ui="itemSource">${optionList((selectedItemGroup.xpSources || []).map(x => ({ value: x.value, label: x.label })), state.ui.itemSource || selectedItemGroup.xpSources?.[0]?.value)}</select></label></div>
+          <div class="field-grid two"><label class="field"><span>Type</span><select data-ui="itemGroup">${optionList(xpItemGroups.map(g => ({ value: g.id, label: groupLabel(g) })), selectedItemGroup.id)}</select></label><label class="field"><span>Name</span><input data-ui="itemName" value="${attr(state.ui.itemName)}"></label><label class="field"><span>Level</span><input type="number" min="1" max="5" data-ui="itemLevel" value="${Number(state.ui.itemLevel || 1)}"></label><label class="field"><span>Source</span><select data-ui="itemSource">${optionList((selectedItemGroup.xpSources || []).map(x => ({ value: x.value, label: x.label })), state.ui.itemSource || selectedItemGroup.xpSources?.[0]?.value)}</select></label></div>
           <div class="purchase-preview">This purchase costs <b>${itemPurchaseCost(selectedItemGroup)} XP</b>.</div>
           <button class="button primary" type="button" data-action="buy-item-xp" ${!state.ui.itemName.trim() || state.xp.available < itemPurchaseCost(selectedItemGroup) ? "disabled" : ""}>Record purchase</button>
         </div></section>` : ""}
@@ -497,10 +546,10 @@
     const groups = allGroups(p);
     return `<div class="step-heading"><div><span class="eyebrow">Step 7</span><h2>Review and take the character with you</h2></div><p>Resolve any blocking creation conflicts, then export an editable draft or print a clean record.</p></div>
       <div class="review-grid">
-        <section class="review-block"><h3>Identity</h3>${[...(C.identityFields || []), ...(p.identityFields || [])].map(f => state.identity[f.key] ? `<div class="review-trait"><span>${esc(f.label)}</span><b>${esc(state.identity[f.key])}</b></div>` : "").join("")}</section>
+        <section class="review-block"><h3>Identity</h3>${[...(C.identityFields || []), ...(p.identityFields || [])].map(f => state.identity[f.key] ? `<div class="review-trait"><span>${esc(fieldLabel(f))}</span><b>${esc(state.identity[f.key])}</b></div>` : "").join("")}</section>
         <section class="review-block"><h3>Creation ledger</h3><div class="review-trait"><span>Freebies</span><b>${l.freebieSpent} / ${l.freebiePool}</b></div>${Object.values(l.secondaryPools).map(pool => `<div class="review-trait"><span>${esc(pool.label)}</span><b>${pool.spent} / ${pool.amount}</b></div>`).join("")}<div class="review-trait"><span>XP available</span><b>${state.xp.available}</b></div>${l.warnings.map(w => `<p>${w.type === "bad" ? "⚠ " : ""}${esc(w.text)}</p>`).join("")}</section>
-        ${groups.map(g => { const rows = reviewRows(g); return rows.length ? `<section class="review-block"><h3>${esc(g.label)}</h3>${rows.map(([name, value]) => `<div class="review-trait"><span>${esc(name)}</span><b>${dotsText(value, Math.max(5, value))}</b></div>`).join("")}</section>` : ""; }).join("")}
-        ${(p.itemGroups || []).map(g => (state.items[g.id] || []).length ? `<section class="review-block"><h3>${esc(g.label)}</h3>${state.items[g.id].map(x => `<div class="review-trait"><span>${esc(x.name || "Unnamed")}</span><b>${esc(x.source || "")} · ${Number(x.rating || 1)}</b></div>`).join("")}</section>` : "").join("")}
+        ${groups.map(g => { const rows = reviewRows(g); return rows.length ? `<section class="review-block"><h3>${esc(groupLabel(g))}</h3>${rows.map(([name, value]) => `<div class="review-trait"><span>${esc(name)}</span><b>${dotsText(value, Math.max(5, value))}</b></div>`).join("")}</section>` : ""; }).join("")}
+        ${(p.itemGroups || []).map(g => (state.items[g.id] || []).length ? `<section class="review-block"><h3>${esc(groupLabel(g))}</h3>${state.items[g.id].map(x => `<div class="review-trait"><span>${esc(x.name || "Unnamed")}</span><b>${esc(x.source || "")} · ${Number(x.rating || 1)}</b></div>`).join("")}</section>` : "").join("")}
         <section class="review-block"><h3>Merits and Flaws</h3>${state.merits.concat(state.flaws).map(x => `<div class="review-trait"><span>${esc(x.name || "Unnamed")}</span><b>${x.cost}</b></div>`).join("") || "<p>None recorded.</p>"}</section>
         <section class="review-block"><h3>Notes</h3>${Object.entries(state.notes).filter(([,v]) => v).map(([k,v]) => `<p><b>${esc((p.noteFields || []).find(f => f.key === k)?.label || k)}:</b> ${esc(v)}</p>`).join("") || "<p>No notes recorded.</p>"}</section>
       </div><div class="step-actions"><button class="button light" type="button" data-action="export">Export editable character</button><button class="button primary" type="button" data-action="print">Print / Save PDF</button></div>`;
@@ -528,15 +577,15 @@
   }
   function renderPrint() {
     const p = profile();
-    const identity = [...(C.identityFields || []), ...(p.identityFields || [])].map(f => [f.label, state.identity[f.key]]).filter(([,v]) => v);
+    const identity = [...(C.identityFields || []), ...(p.identityFields || [])].map(f => [fieldLabel(f), state.identity[f.key]]).filter(([,v]) => v);
     const groups = allGroups(p);
-    const specials = (p.specials || []).map(s => [s.label, Number(state.specialBase[s.id] || 0) + Number(state.specialXp[s.id] || 0)]);
-    const items = (p.itemGroups || []).flatMap(g => (state.items[g.id] || []).map(x => [`${g.label}: ${x.name || "Unnamed"}`, `${x.source || ""} ${x.rating || 1}`.trim()]));
-    return `<article class="print-sheet"><header class="print-head"><div class="print-sigil"><span>${esc(C.mark)}</span></div><div><h1>${esc(state.identity.name || "Unnamed Character")}</h1><p>${esc(C.title)} · ${esc(p.label)}</p></div><aside><b>${esc(C.code.toUpperCase())}</b><span>${esc(state.identity.chronicle || "Character record")}</span></aside></header>
+    const specials = (p.specials || []).map(s => [specialLabel(s), Number(state.specialBase[s.id] || 0) + Number(state.specialXp[s.id] || 0)]);
+    const items = (p.itemGroups || []).flatMap(g => (state.items[g.id] || []).map(x => [`${groupLabel(g)}: ${x.name || "Unnamed"}`, `${x.source || ""} ${x.rating || 1}`.trim()]));
+    return `<article class="print-sheet"><header class="print-head"><div class="print-sigil">${renderSigil()}</div><div><h1>${esc(state.identity.name || "Unnamed Character")}</h1><p>${esc(C.title)} · ${esc(p.label)} · ${esc(terminology().label || "Core terminology")}</p></div><aside><b>${esc(C.code.toUpperCase())}</b><span>${esc(state.identity.chronicle || "Character record")}</span></aside></header>
       <section class="print-identity">${identity.slice(0, 9).map(([label, value]) => `<div><span>${esc(label)}</span><b>${esc(value)}</b></div>`).join("")}</section>
-      <div class="print-title">Attributes</div><div class="print-columns">${groups.filter(g => g.kind === "attribute").map(g => printBlock(g.label, g.traits.map(t => [t, current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
-      <div class="print-title">Abilities</div><div class="print-columns">${groups.filter(g => g.kind === "ability").map(g => printBlock(g.label, g.traits.map(t => [t, current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
-      <div class="print-title">Advantages</div><div class="print-columns two">${groups.filter(g => !["attribute","ability"].includes(g.kind)).map(g => printBlock(g.label, reviewRows(g))).join("")}${printBlock("Core ratings", specials)}${printBlock("Named traits", items)}</div>
+      <div class="print-title">Attributes</div><div class="print-columns">${groups.filter(g => g.kind === "attribute").map(g => printBlock(groupLabel(g), g.traits.map(t => [t, current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
+      <div class="print-title">Abilities</div><div class="print-columns">${groups.filter(g => g.kind === "ability").map(g => printBlock(groupLabel(g), g.traits.map(t => [t, current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
+      <div class="print-title">${esc(uiTerm("advantagesPrintTitle", "Advantages"))}</div><div class="print-columns two">${groups.filter(g => !["attribute","ability"].includes(g.kind)).map(g => printBlock(groupLabel(g), reviewRows(g))).join("")}${printBlock(uiTerm("coreRatings", "Core ratings"), specials)}${printBlock("Named traits", items)}</div>
       <div class="print-title page-break">Character and chronicle record</div><div class="print-columns two">${printBlock("Merits", state.merits.map(x => [x.name, String(x.cost)]))}${printBlock("Flaws", state.flaws.map(x => [x.name, String(x.cost)]))}</div>
       <div class="print-columns two" style="margin-top:9px">${Object.entries(state.notes).filter(([,v]) => v).map(([key,value]) => `<section class="print-prose"><h3>${esc((p.noteFields || []).find(f => f.key === key)?.label || key)}</h3><p>${esc(value)}</p></section>`).join("")}</div>
       <div class="print-title">Advancement history</div>${state.xp.history.length ? state.xp.history.map(x => `<div class="print-row"><span>${esc(x.label)} · ${esc(x.detail)}</span><b>${x.cost} XP</b></div>`).join("") : '<div class="print-row"><span>No purchases recorded.</span></div>'}
@@ -544,7 +593,7 @@
   }
 
   function render() {
-    app.innerHTML = `<div class="shell">${renderTop()}<div class="workspace">${renderRail()}<main class="paper"><header class="masthead"><span class="eyebrow">${esc(C.game)}</span><h2>${esc(profile().label)}</h2><p>${esc(profile().description)}</p></header>${renderStep()}${renderFooter()}</main>${renderLedger()}</div></div>${renderPrint()}`;
+    app.innerHTML = `<div class="shell">${renderTop()}<div class="workspace">${renderRail()}<main class="paper"><header class="masthead"><div class="masthead-sigil">${renderSigil()}</div><span class="eyebrow">${esc(C.game)}</span><h2>${esc(profile().label)}</h2><p>${esc(profile().description)}</p></header>${renderStep()}${renderFooter()}</main>${renderLedger()}</div></div>${renderPrint()}`;
     bindImport();
   }
 
@@ -608,11 +657,18 @@
     if (!button) return;
     const action = button.dataset.action;
     if (action === "step") return commit({ step: Number(button.dataset.step) });
+    if (action === "terminology") {
+      if (!(C.terminologySets || []).some(set => set.id === button.dataset.terminology)) return;
+      state.terminologyId = button.dataset.terminology;
+      return commit({ step: activeStep });
+    }
     if (action === "profile") {
       if (button.dataset.profile === state.profileId) return;
       const hasWork = state.identity.name || state.merits.length || state.flaws.length || state.xp.history.length || allGroups().some(g => groupSpend(g) > (g.kind === "attribute" ? 0 : 0));
       if (hasWork && !confirm("Switching templates starts a new character. Export this draft first if you want to keep it. Continue?")) return;
+      const terminologyId = state.terminologyId;
       state = freshState(button.dataset.profile);
+      state.terminologyId = terminologyId;
       return commit({ step: 0 });
     }
     if (action === "rating") {
@@ -715,7 +771,9 @@
     if (action === "print") return window.print();
     if (action === "reset") {
       if (!confirm("Start a new character? Export first if you want to keep this draft.")) return;
+      const terminologyId = state.terminologyId;
       state = freshState(state.profileId);
+      state.terminologyId = terminologyId;
       return commit({ step: 0 });
     }
   });

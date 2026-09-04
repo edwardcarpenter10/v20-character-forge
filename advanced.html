@@ -3,13 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Advanced Vampire Workspace</title>
+  <meta name="theme-color" content="#080606">
+  <title>Advanced Vampire Workspace · Character Forge</title>
   <style>
-    html,body{margin:0;background:#171313;color:#f0dfda;font:14px/1.5 Arial,sans-serif}iframe{display:block;width:100%;height:calc(100vh - 126px);min-height:650px;border:0}footer{display:flex;gap:16px;align-items:center;min-height:94px;padding:16px 22px;border-top:4px double #76111d}img{width:70px;height:70px;object-fit:contain}p{margin:0;max-width:1100px}@media(max-width:620px){iframe{height:calc(100vh - 190px)}footer{align-items:flex-start;font-size:11px}img{width:52px;height:52px}}
+    :root{--accent:#76111d;--metal:#b08850;--bg:#171313;--deep:#080606;color-scheme:dark;font:16px Inter,ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}html,body{height:100%;margin:0}body{display:flex;min-width:320px;flex-direction:column;color:#f4e7e1;background:radial-gradient(circle at 75% -10%,#76111d42,transparent 28rem),linear-gradient(140deg,var(--deep),var(--bg))}.forge-chrome{min-height:74px;display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:4px double var(--accent);background:#080606eb}.brand{display:flex;min-width:0;align-items:center;gap:12px;color:inherit;text-decoration:none}.sigil{width:50px;height:50px;flex:0 0 auto;color:var(--metal);fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 4px 8px #0009)}.frame{fill:#571018;stroke-width:1.25}.ring{opacity:.7}.ticks{stroke-width:1.4}.glyph{stroke:#fff4eb;stroke-width:2.2}.brand b{display:block;font:500 1.25rem/1.05 Georgia,serif;letter-spacing:.09em;text-transform:uppercase}.brand small{display:block;margin-top:5px;color:#b4a2a1;font-size:.7rem;letter-spacing:.12em}.back{margin-left:auto;border:1px solid var(--metal);padding:9px 12px;color:#f4e7e1;text-decoration:none;font-size:.78rem}.back:hover{background:#ffffff12}iframe{display:block;width:100%;min-height:650px;flex:1 1 auto;border:0;background:#171313}.fan-footer{display:flex;align-items:center;gap:16px;min-height:104px;padding:14px 22px;border-top:4px double var(--accent);color:#d5c1bc;background:#080606;font-size:.72rem;line-height:1.45}.fan-footer img{width:68px;height:68px;object-fit:contain}.fan-footer p{max-width:1100px;margin:0}@media(max-width:650px){.forge-chrome{padding-inline:12px}.brand small{display:none}.brand b{font-size:1rem}.sigil{width:42px;height:42px}.back{padding:8px;font-size:.7rem}.fan-footer{align-items:flex-start;padding:12px;font-size:.64rem}.fan-footer img{width:52px;height:52px}}
   </style>
 </head>
 <body>
+  <header class="forge-chrome">
+    <a class="brand" href="index.html" aria-label="Return to Vampire Character Forge">
+      <svg class="sigil" viewBox="0 0 64 64" aria-hidden="true"><path class="frame" d="M32 3 51 11 61 32 53 52 32 61 12 53 3 32 11 12Z"/><circle class="ring" cx="32" cy="32" r="21"/><path class="ticks" d="M32 7v5m25 20h-5M32 57v-5M7 32h5"/><g class="glyph"><path d="M32 14c-4.2 8.1-11 14.2-11 22.1a11 11 0 0 0 22 0C43 28.2 36.2 22.1 32 14Z"/><path d="m26.5 33.5 5.5 11 5.5-11"/></g></svg>
+      <span><b>Vampire Character Forge</b><small>Lantern &amp; Lever · advanced workspace</small></span>
+    </a>
+    <a class="back" href="index.html">← Guided forge</a>
+  </header>
   <iframe src="legacy.html" title="Advanced Vampire Character Forge"></iframe>
-  <footer><img src="darkpack-logo.png" alt="World of Darkness Dark Pack logo"><p><strong>Unofficial fan material.</strong> This is not official World of Darkness material and is not endorsed by Paradox Interactive.<br>Portions of the materials are the copyrights and trademarks of Paradox Interactive AB, and are used with permission. All rights reserved. For more information please visit worldofdarkness.com.</p></footer>
+  <footer class="fan-footer"><img src="darkpack-logo.png" alt="World of Darkness Dark Pack logo"><p><strong>Unofficial fan material.</strong> This is not official World of Darkness material and is not endorsed by Paradox Interactive.<br>Portions of the materials are the copyrights and trademarks of Paradox Interactive AB, and are used with permission. All rights reserved. For more information please visit worldofdarkness.com.</p></footer>
 </body>
 </html>
