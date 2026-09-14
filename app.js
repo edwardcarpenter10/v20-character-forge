@@ -255,6 +255,9 @@
       (rule.conflicts || []).forEach(conflict => {
         if (conflict.type === "clan" && (conflict.values || []).includes(state.identity.clan)) warnings.push({ type: "bad", text: conflict.message });
         if (conflict.type === "virtueEthics" && state.virtueTypes?.ethics === conflict.value) warnings.push({ type: "bad", text: conflict.message });
+        if (conflict.type === "sect" && state.identity.sect === conflict.value) warnings.push({ type: "bad", text: conflict.message });
+        if (conflict.type === "merit" && hasNamed("merit", conflict.name)) warnings.push({ type: "bad", text: conflict.message });
+        if (conflict.type === "flaw" && hasNamed("flaw", conflict.name)) warnings.push({ type: "bad", text: conflict.message });
       });
       (rule.requirements || []).forEach(req => {
         if (req.type === "merit" && !hasNamed("merit", req.name)) warnings.push({ type: "bad", text: req.message });
@@ -262,6 +265,9 @@
           const moralityName = String(state.identity.moralityName || "Humanity").toLowerCase();
           if (!moralityName.includes("humanity") || Number(state.specialBase.morality || 0) + Number(state.specialXp.morality || 0) < Number(req.value)) warnings.push({ type: "bad", text: req.message });
         }
+        if (req.type === "specialMin" && Number(state.specialBase[req.special] || 0) + Number(state.specialXp[req.special] || 0) < Number(req.value)) warnings.push({ type: "bad", text: req.message });
+        if (req.type === "attributeMin" && current(req.group, req.trait) < Number(req.value)) warnings.push({ type: "bad", text: req.message });
+        if (req.type === "sect" && state.identity.sect !== req.value) warnings.push({ type: "bad", text: req.message });
       });
       (rule.recommendations || []).forEach(rec => {
         if (!hasNamed(rec.kind, rec.name)) warnings.push({ type: "warn", text: rec.message });
