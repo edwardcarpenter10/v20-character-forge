@@ -305,7 +305,7 @@
     const flawCredit = Math.min(Number(p.flawCap ?? 7), flawTotal);
     freebieSpent += meritCost - flawCredit;
     if (meritCost) lines.push({ label: "Merits", spent: meritCost, allowance: 0, extra: meritCost, cost: meritCost });
-    if (flawCredit) lines.push({ label: "Flaw credit", spent: flawTotal, allowance: Number(p.flawCap ?? 7), extra: 0, cost: -flawCredit });
+    if (flawCredit) lines.push({ label: "Flaw credit", spent: flawTotal, allowance: Number(p.flawCap ?? 7), extra: 0, cost: 0, credit: flawCredit });
     if (flawTotal > Number(p.flawCap ?? 7)) warnings.push({ type: "warn", text: `Only ${p.flawCap ?? 7} points of Flaws contribute to the freebie budget.` });
     const freebiePool = Number(p.pools.freebies || 0);
     const remaining = freebiePool - freebieSpent;
@@ -561,7 +561,7 @@
 
   function renderLedger() {
     const l = ledger();
-    return `<aside class="ledger"><h2>Creation ledger</h2><div>${l.lines.map(x => `<div class="ledger-line"><span>${esc(x.label)}${x.extra ? ` · ${x.extra} freebie` : ""}${x.budget ? ` · ${esc(l.secondaryPools[x.budget]?.shortLabel || l.secondaryPools[x.budget]?.label || x.budget)}` : ""}</span><b>${x.spent} / ${x.allowance}${x.cost ? ` · ${x.cost > 0 ? "+" : ""}${x.cost} FP` : ""}</b></div>`).join("")}</div>
+    return `<aside class="ledger"><h2>Creation ledger</h2><div>${l.lines.map(x => `<div class="ledger-line"><span>${esc(x.label)}${x.extra ? ` · ${x.extra} freebie` : ""}${x.budget ? ` · ${esc(l.secondaryPools[x.budget]?.shortLabel || l.secondaryPools[x.budget]?.label || x.budget)}` : ""}</span><b>${x.spent} / ${x.allowance}${x.credit ? ` · +${x.credit} freebies` : x.cost ? ` · ${x.cost > 0 ? "+" : ""}${x.cost} FP` : ""}</b></div>`).join("")}</div>
       <div class="ledger-total"><strong><span>Freebies remaining</span><span>${l.remaining}</span></strong><small>${state.buildMode === "open" ? "Storyteller Open shows budgets as reference only." : `${l.freebieSpent} spent from ${l.freebiePool}, after eligible Flaw credit.`}</small></div>
       ${Object.values(l.secondaryPools).map(pool => `<div class="ledger-total secondary"><strong><span>${esc(pool.label)} remaining</span><span>${pool.remaining}</span></strong><small>${pool.spent} spent from ${pool.amount}.</small></div>`).join("")}
       <ul class="validation">${l.warnings.slice(0, 8).map(w => `<li class="${w.type}">${esc(w.text)}</li>`).join("")}</ul></aside>`;
