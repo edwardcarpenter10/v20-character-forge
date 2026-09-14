@@ -33,7 +33,7 @@ window.FORGE_CONFIG = {
       label: "Vampire",
       category: "Full supernatural",
       description: "One of the Kindred or Cainites, shaped by Clan, Sect, Generation, Disciplines, blood, morality, and the Beast.",
-      rulesNote: "Standard V20 creation uses 7/5/3 Attributes, 13/9/5 Abilities, three Discipline dots, five Background dots, seven Virtue dots, and 15 freebies. Use the Advanced Vampire workspace for clan auto-fill, blood magic paths and rituals, Sect terminology, and detailed Generation limits.",
+      rulesNote: "Standard V20 creation uses 7/5/3 Attributes, 13/9/5 Abilities, three Discipline dots, five Background dots, seven Virtue dots, and 15 freebies. Sabbat creation uses four Discipline dots, zero free Background dots, five Virtue dots, and 15 freebies. Conscience/Conviction and Self-Control/Instinct can be chosen independently; Conviction and Instinct begin at zero. Humanity/Path and Willpower derive automatically from Virtues.",
       pools: { attributes: [7, 5, 3], abilities: [13, 9, 5], freebies: 15 },
       flawCap: 7,
       identityFields: [
@@ -48,17 +48,17 @@ window.FORGE_CONFIG = {
       groups: [
         { id: "disciplines", kind: "discipline", label: "Disciplines", pool: 3, freebieCost: 7, xpNew: 10, xpMult: 5, traits: ["Animalism", "Auspex", "Celerity", "Chimerstry", "Dementation", "Dominate", "Fortitude", "Necromancy", "Obfuscate", "Obtenebration", "Potence", "Presence", "Protean", "Quietus", "Serpentis", "Thaumaturgy", "Vicissitude"], note: "The displayed XP multiplier is the in-clan rate. Use the advanced workspace or record a manual note for out-of-clan, Caitiff, blood magic, and elder costs." },
         { id: "backgrounds", kind: "background", label: "Backgrounds", pool: 5, freebieCost: 1, xp: false, traits: ["Allies", "Alternate Identity", "Black Hand Membership", "Contacts", "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", "Resources", "Retainers", "Rituals", "Status"] },
-        { id: "virtues", kind: "virtue", label: "Virtues", pool: 7, freebieCost: 2, xpMult: 2, min: 1, freeDots: { "Conscience / Conviction": 1, "Self-Control / Instinct": 1, Courage: 1 }, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"], note: "Allocate seven dots beyond the automatic one in each Virtue." }
+        { id: "virtues", kind: "virtue", label: "Virtues", pool: 7, freebieCost: 2, xpMult: 2, min: 0, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"], note: "Choose each Virtue pair independently. Conscience, Self-Control, and Courage begin with one automatic dot; Conviction and Instinct begin at zero. Sabbat characters allocate five Virtue dots; other vampires allocate seven." }
       ],
       specials: [
-        { id: "morality", label: "Humanity / Path", min: 0, max: 10, freebieCost: 1, xpMult: 2, default: 2, help: "Normally begins at the sum of the two governing Virtues; adjust after allocating Virtues." },
-        { id: "willpower", label: "Willpower", min: 1, max: 10, freebieCost: 1, xpMult: 1, default: 1, help: "Normally begins at Courage; adjust after allocating Virtues." },
+        { id: "morality", label: "Humanity / Path", min: 0, max: 10, freebieCost: 1, xpMult: 2, default: 2, help: "Automatically begins at the sum of the two governing Virtues; freebies purchase only increases above that base." },
+        { id: "willpower", label: "Willpower", min: 1, max: 10, freebieCost: 1, xpMult: 1, default: 1, help: "Automatically begins at Courage; freebies purchase only increases above that base." },
         { id: "blood", label: "Current Blood Pool", min: 0, max: 50, freebieCost: 0, xp: false, default: 10, help: "Set current blood and consult the Generation table for the maximum." }
       ],
       customValidation: (state) => {
         const virtues = state.ratings.virtues || {};
-        const conscience = Number(virtues["Conscience / Conviction"]?.base || 1);
-        const control = Number(virtues["Self-Control / Instinct"]?.base || 1);
+        const conscience = Number(virtues["Conscience / Conviction"]?.base ?? (state.virtueTypes?.ethics === "conviction" ? 0 : 1));
+        const control = Number(virtues["Self-Control / Instinct"]?.base ?? (state.virtueTypes?.control === "instinct" ? 0 : 1));
         const courage = Number(virtues.Courage?.base || 1);
         const warnings = [];
         if (Number(state.specialBase.morality || 0) < conscience + control) warnings.push({ type: "warn", text: "Humanity or Path normally begins at the sum of its two governing Virtues." });

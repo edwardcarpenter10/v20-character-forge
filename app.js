@@ -97,11 +97,57 @@
     return groups;
   }
 
-  function specialDefault(s, identity = state.identity) {
+  function isVirtueGroup(g) { return g?.id === "virtues"; }
+  function traitLabel(g, trait, sourceState = state) {
+    if (!isVirtueGroup(g)) return trait;
+    if (trait === "Conscience / Conviction") return sourceState.virtueTypes?.ethics === "conviction" ? "Conviction" : "Conscience";
+    if (trait === "Self-Control / Instinct") return sourceState.virtueTypes?.control === "instinct" ? "Instinct" : "Self-Control";
+    return trait;
+  }
+  function groupFreeDot(g, trait, sourceState = state) {
+    if (isVirtueGroup(g)) {
+      if (trait === "Conscience / Conviction") return sourceState.virtueTypes?.ethics === "conviction" ? 0 : 1;
+      if (trait === "Self-Control / Instinct") return sourceState.virtueTypes?.control === "instinct" ? 0 : 1;
+      if (trait === "Courage") return 1;
+    }
+    return Number((g.freeDots || {})[trait] || 0);
+  }
+  function traitMin(g, trait, sourceState = state) {
+    if (isVirtueGroup(g)) return groupFreeDot(g, trait, sourceState);
+    return Number(g.min ?? 0);
+  }
+  function groupAllowance(g, p = profile(), sourceState = state) {
+    if (p.id === "vampire" && sourceState.identity?.sect === "Sabbat") {
+      if (g.id === "disciplines") return 4;
+      if (g.id === "backgrounds") return 0;
+      if (g.id === "virtues") return 5;
+    }
+    return Number(g.pool || 0);
+  }
+  function specialDefault(s, identity = state.identity, sourceState = state) {
+    if (s.id === "morality" && sourceState.ratings?.virtues) {
+      return Number(sourceState.ratings.virtues["Conscience / Conviction"]?.base || 0) +
+        Number(sourceState.ratings.virtues["Self-Control / Instinct"]?.base || 0);
+    }
+    if (s.id === "willpower" && sourceState.ratings?.virtues) return Number(sourceState.ratings.virtues.Courage?.base || 1);
     if (!s.fromIdentity) return Number(s.default || 0);
     const chosen = identity[s.fromIdentity.key];
     const mapped = s.fromIdentity.map[chosen];
     return Number(mapped ?? s.default ?? 0);
+  }
+  function derivedSpecialStarts(sourceState = state) {
+    const p = C.profiles.find(x => x.id === sourceState.profileId) || C.profiles[0];
+    return Object.fromEntries((p.specials || [])
+      .filter(s => s.id === "morality" || s.id === "willpower")
+      .map(s => [s.id, specialDefault(s, sourceState.identity, sourceState)]));
+  }
+  function preserveDerivedPurchases(beforeStarts) {
+    const afterStarts = derivedSpecialStarts(state);
+    Object.entries(afterStarts).forEach(([id, nextBase]) => {
+      const previousBase = Number(beforeStarts[id] ?? nextBase);
+      const currentValue = Number(state.specialBase[id] ?? previousBase);
+      state.specialBase[id] = Math.max(nextBase, currentValue + (nextBase - previousBase));
+    });
   }
 
   function freshState(profileId = C.profiles[0].id) {
@@ -112,6 +158,7 @@
       profileId: p.id,
       terminologyId: C.terminologySets?.[0]?.id || "default",
       buildMode: "standard",
+      virtueTypes: { ethics: "conscience", control: "selfControl" },
       identity: { name: "", player: "", chronicle: "", concept: "", nature: "", demeanor: "" },
       priorities: {
         attributes: Object.fromEntries(Object.keys(ATTRIBUTES).map((name, i) => [name, PRIORITY_NAMES[i]])),
@@ -137,12 +184,12 @@
       base.ratings[g.id] = {};
       base.customRatings[g.id] = [];
       g.traits.forEach(trait => {
-        const free = Number((g.freeDots || {})[trait] || 0);
-        base.ratings[g.id][trait] = { base: Math.max(g.min, free), xp: 0 };
+        const free = groupFreeDot(g, trait, base);
+        base.ratings[g.id][trait] = { base: Math.max(traitMin(g, trait, base), free), xp: 0 };
       });
     });
     (p.specials || []).forEach(s => {
-      base.specialBase[s.id] = specialDefault(s, base.identity);
+      base.specialBase[s.id] = specialDefault(s, base.identity, base);
       base.specialXp[s.id] = 0;
     });
     (p.itemGroups || []).forEach(g => { base.items[g.id] = []; });
@@ -154,6 +201,7 @@
     if (!raw || raw.forge !== C.code || !C.profiles.some(p => p.id === raw.profileId)) return freshState();
     const base = freshState(raw.profileId);
     const merged = { ...base, ...raw };
+    merged.virtueTypes = { ...base.virtueTypes, ...(raw.virtueTypes || {}) };
     merged.identity = { ...base.identity, ...(raw.identity || {}) };
     merged.priorities = {
       attributes: { ...base.priorities.attributes, ...(raw.priorities?.attributes || {}) },
@@ -164,11 +212,14 @@
       merged.ratings[g.id] ||= {};
       g.traits.forEach(t => {
         const existing = merged.ratings[g.id][t];
-        merged.ratings[g.id][t] = { base: Number(existing?.base ?? g.min), xp: Number(existing?.xp || 0) };
+        merged.ratings[g.id][t] = { base: Math.max(traitMin(g, t, merged), Number(existing?.base ?? traitMin(g, t, merged))), xp: Number(existing?.xp || 0) };
       });
     });
     merged.customRatings = { ...base.customRatings, ...(raw.customRatings || {}) };
     merged.specialBase = { ...base.specialBase, ...(raw.specialBase || {}) };
+    (C.profiles.find(p => p.id === merged.profileId)?.specials || []).forEach(s => {
+      if (s.id === "morality" || s.id === "willpower") merged.specialBase[s.id] = Math.max(specialDefault(s, merged.identity, merged), Number(merged.specialBase[s.id] ?? 0));
+    });
     merged.specialXp = { ...base.specialXp, ...(raw.specialXp || {}) };
     merged.items = { ...base.items, ...(raw.items || {}) };
     merged.notes = { ...base.notes, ...(raw.notes || {}) };
@@ -223,7 +274,7 @@
 
   function groupSpend(g) {
     const entries = [
-      ...g.traits.map(name => ({ name, base: baseRating(g.id, name), free: Number((g.freeDots || {})[name] || 0) })),
+      ...g.traits.map(name => ({ name, base: baseRating(g.id, name), free: groupFreeDot(g, name, state) })),
       ...(state.customRatings[g.id] || []).map(x => ({ name: x.name, base: Number(x.base || 0), free: 0 }))
     ];
     if (g.kind === "attribute") return entries.reduce((sum, x) => sum + Math.max(0, x.base - g.min), 0);
@@ -267,7 +318,7 @@
           extra = Math.max(0, spent - allowance);
         }
       } else {
-        allowance = Number(g.pool || 0);
+        allowance = groupAllowance(g, p, state);
         initialSpend = Math.min(spent, allowance);
         extra = Math.max(0, spent - allowance);
       }
@@ -292,7 +343,7 @@
       if (g.maxCreationRating) creationItems.filter(x => Number(x.rating || x.level || 1) > g.maxCreationRating).forEach(x => warnings.push({ type: "bad", text: `${x.name || g.itemLabel} exceeds the standard starting limit of ${g.maxCreationRating}.` }));
     });
     (p.specials || []).forEach(s => {
-      const start = specialDefault(s);
+      const start = specialDefault(s, state.identity, state);
       const value = Number(state.specialBase[s.id] ?? start);
       const extra = Math.max(0, value - start);
       const cost = extra * Number(s.freebieCost || 0);
@@ -330,10 +381,11 @@
     const base = baseRating(g.id, trait);
     const xp = xpRating(g.id, trait);
     const total = base + xp;
-    let html = '<span class="dots" role="group" aria-label="' + attr(trait) + ' rating">';
+    const shownTrait = traitLabel(g, trait, state);
+    let html = '<span class="dots" role="group" aria-label="' + attr(shownTrait) + ' rating">';
     for (let i = 1; i <= Number(g.max || 5); i++) {
       const cls = i <= base ? "filled" : i <= total ? "filled xp" : "";
-      html += `<button class="dot ${cls}" type="button" data-action="rating" data-group="${attr(g.id)}" data-trait="${attr(trait)}" data-value="${i}" aria-label="Set ${attr(trait)} creation rating to ${i}" ${editable ? "" : "disabled"}></button>`;
+      html += `<button class="dot ${cls}" type="button" data-action="rating" data-group="${attr(g.id)}" data-trait="${attr(trait)}" data-value="${i}" aria-label="Set ${attr(shownTrait)} creation rating to ${i}" ${editable ? "" : "disabled"}></button>`;
     }
     return html + "</span>";
   }
@@ -416,10 +468,24 @@
       <div class="trait-columns">${groups.map(renderTraitColumn).join("")}</div>`;
   }
 
+  function renderVirtueTypeToggles(g) {
+    if (!isVirtueGroup(g)) return "";
+    const ethics = state.virtueTypes?.ethics || "conscience";
+    const control = state.virtueTypes?.control || "selfControl";
+    return `<div class="terminology-options" role="group" aria-label="Virtue types">
+      <button type="button" data-action="virtue-type" data-axis="ethics" data-value="conscience" class="${ethics === "conscience" ? "selected" : ""}" aria-pressed="${ethics === "conscience"}"><b>Conscience</b><span>Automatic starting dot.</span></button>
+      <button type="button" data-action="virtue-type" data-axis="ethics" data-value="conviction" class="${ethics === "conviction" ? "selected" : ""}" aria-pressed="${ethics === "conviction"}"><b>Conviction</b><span>Starts at zero.</span></button>
+      <button type="button" data-action="virtue-type" data-axis="control" data-value="selfControl" class="${control === "selfControl" ? "selected" : ""}" aria-pressed="${control === "selfControl"}"><b>Self-Control</b><span>Automatic starting dot.</span></button>
+      <button type="button" data-action="virtue-type" data-axis="control" data-value="instinct" class="${control === "instinct" ? "selected" : ""}" aria-pressed="${control === "instinct"}"><b>Instinct</b><span>Starts at zero.</span></button>
+    </div>`;
+  }
+
   function renderRatedGroup(g) {
     const spent = groupSpend(g);
-    return `<section class="rated-list"><header><h3>${esc(groupLabel(g))}</h3><span class="budget-label ${spent > Number(g.pool || 0) ? "over" : spent === Number(g.pool || 0) ? "ok" : ""}">${spent} / ${Number(g.pool || 0)}</span></header>
-      ${g.traits.map(trait => `<div class="trait-row"><span>${esc(trait)}</span>${renderDots(g, trait)}</div>`).join("")}
+    const allowance = groupAllowance(g, profile(), state);
+    return `<section class="rated-list"><header><h3>${esc(groupLabel(g))}</h3><span class="budget-label ${spent > allowance ? "over" : spent === allowance ? "ok" : ""}">${spent} / ${allowance}</span></header>
+      ${renderVirtueTypeToggles(g)}
+      ${g.traits.map(trait => `<div class="trait-row"><span>${esc(traitLabel(g, trait, state))}</span>${renderDots(g, trait)}</div>`).join("")}
       ${(state.customRatings[g.id] || []).map(row => `<div class="trait-row"><span>${esc(row.name)}<small>Custom</small></span>${renderDots(g, row.id)}<button class="icon-button" type="button" data-action="remove-custom" data-group="${attr(g.id)}" data-id="${row.id}" aria-label="Remove ${attr(row.name)}">×</button></div>`).join("")}
       <div class="field-grid two"><label class="field"><span>Custom trait</span><input data-ui-custom="${attr(g.id)}" value="${attr(state.ui.customNames[g.id] || "")}" placeholder="Name"></label><button class="button light add-row" type="button" data-action="add-custom" data-group="${attr(g.id)}">Add</button></div>
       ${g.note ? `<p class="rule-note">${esc(g.note)}</p>` : ""}
@@ -442,8 +508,9 @@
     return `<div class="step-heading"><div><span class="eyebrow">Step 4</span><h2>${esc(uiTerm("advantagesHeading", "Advantages and supernatural traits"))}</h2></div><p>The selected template determines which powers, relationships, and pools belong here. Custom entries keep supplement and chronicle material usable.</p></div>
       <div class="advantages-grid">${groups.map(renderRatedGroup).join("")}${(p.itemGroups || []).map(renderItemGroup).join("")}</div>
       ${(p.specials || []).length ? `<div class="section-card"><header><div><h3>Core ratings</h3><p>Starting values come from the template and selected lineage, role, or affiliation.</p></div></header><div class="section-body"><div class="special-grid">${p.specials.map(s => {
-        const total = Number(state.specialBase[s.id] || 0) + Number(state.specialXp[s.id] || 0);
-        return `<div class="special-card"><label for="special-${attr(s.id)}">${esc(specialLabel(s))}</label><strong>${total}${state.specialXp[s.id] ? ` <small>(+${state.specialXp[s.id]} XP)</small>` : ""}</strong><input id="special-${attr(s.id)}" type="number" min="${s.min ?? 0}" max="${s.max ?? 10}" data-special="${attr(s.id)}" value="${Number(state.specialBase[s.id] ?? specialDefault(s))}"><small>${esc(s.help || `Standard start: ${specialDefault(s)}`)}</small></div>`;
+        const start = specialDefault(s, state.identity, state);
+        const total = Math.max(start, Number(state.specialBase[s.id] ?? start)) + Number(state.specialXp[s.id] || 0);
+        return `<div class="special-card"><label for="special-${attr(s.id)}">${esc(specialLabel(s))}</label><strong>${total}${state.specialXp[s.id] ? ` <small>(+${state.specialXp[s.id]} XP)</small>` : ""}</strong><input id="special-${attr(s.id)}" type="number" min="${Math.max(Number(s.min ?? 0), start)}" max="${s.max ?? 10}" data-special="${attr(s.id)}" value="${Math.max(start, Number(state.specialBase[s.id] ?? start))}"><small>${esc(s.help || `Creation base: ${start}`)}</small></div>`;
       }).join("")}</div></div></div>` : ""}
       ${p.advantageNote ? `<p class="rule-note">${esc(p.advantageNote)}</p>` : ""}`;
   }
@@ -472,7 +539,7 @@
     const rows = [];
     allGroups(p).forEach(g => {
       if (g.xp === false) return;
-      g.traits.forEach(t => rows.push({ group: g.id, trait: t, label: `${groupLabel(g)} · ${t}` }));
+      g.traits.forEach(t => rows.push({ group: g.id, trait: t, label: `${groupLabel(g)} · ${traitLabel(g, t, state)}` }));
       (state.customRatings[g.id] || []).forEach(t => rows.push({ group: g.id, trait: t.id, label: `${groupLabel(g)} · ${t.name}` }));
     });
     (p.specials || []).filter(s => s.xp !== false).forEach(s => rows.push({ group: `special:${s.id}`, trait: s.id, label: specialLabel(s) }));
@@ -536,7 +603,7 @@
 
   function reviewRows(g) {
     const rows = [];
-    g.traits.forEach(t => { const value = current(g.id, t); if (value > g.min) rows.push([t, value]); });
+    g.traits.forEach(t => { const value = current(g.id, t); if (value > traitMin(g, t, state)) rows.push([traitLabel(g, t, state), value]); });
     (state.customRatings[g.id] || []).forEach(t => { const value = Number(t.base || 0) + Number(t.xp || 0); if (value) rows.push([t.name, value]); });
     return rows;
   }
@@ -579,12 +646,12 @@
     const p = profile();
     const identity = [...(C.identityFields || []), ...(p.identityFields || [])].map(f => [fieldLabel(f), state.identity[f.key]]).filter(([,v]) => v);
     const groups = allGroups(p);
-    const specials = (p.specials || []).map(s => [specialLabel(s), Number(state.specialBase[s.id] || 0) + Number(state.specialXp[s.id] || 0)]);
+    const specials = (p.specials || []).map(s => { const start = specialDefault(s, state.identity, state); return [specialLabel(s), Math.max(start, Number(state.specialBase[s.id] ?? start)) + Number(state.specialXp[s.id] || 0)]; });
     const items = (p.itemGroups || []).flatMap(g => (state.items[g.id] || []).map(x => [`${groupLabel(g)}: ${x.name || "Unnamed"}`, `${x.source || ""} ${x.rating || 1}`.trim()]));
     return `<article class="print-sheet"><header class="print-head"><div class="print-sigil">${renderSigil()}</div><div><h1>${esc(state.identity.name || "Unnamed Character")}</h1><p>${esc(C.title)} · ${esc(p.label)} · ${esc(terminology().label || "Core terminology")}</p></div><aside><b>${esc(C.code.toUpperCase())}</b><span>${esc(state.identity.chronicle || "Character record")}</span></aside></header>
       <section class="print-identity">${identity.slice(0, 9).map(([label, value]) => `<div><span>${esc(label)}</span><b>${esc(value)}</b></div>`).join("")}</section>
-      <div class="print-title">Attributes</div><div class="print-columns">${groups.filter(g => g.kind === "attribute").map(g => printBlock(groupLabel(g), g.traits.map(t => [t, current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
-      <div class="print-title">Abilities</div><div class="print-columns">${groups.filter(g => g.kind === "ability").map(g => printBlock(groupLabel(g), g.traits.map(t => [t, current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
+      <div class="print-title">Attributes</div><div class="print-columns">${groups.filter(g => g.kind === "attribute").map(g => printBlock(groupLabel(g), g.traits.map(t => [traitLabel(g, t, state), current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
+      <div class="print-title">Abilities</div><div class="print-columns">${groups.filter(g => g.kind === "ability").map(g => printBlock(groupLabel(g), g.traits.map(t => [traitLabel(g, t, state), current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
       <div class="print-title">${esc(uiTerm("advantagesPrintTitle", "Advantages"))}</div><div class="print-columns two">${groups.filter(g => !["attribute","ability"].includes(g.kind)).map(g => printBlock(groupLabel(g), reviewRows(g))).join("")}${printBlock(uiTerm("coreRatings", "Core ratings"), specials)}${printBlock("Named traits", items)}</div>
       <div class="print-title page-break">Character and chronicle record</div><div class="print-columns two">${printBlock("Merits", state.merits.map(x => [x.name, String(x.cost)]))}${printBlock("Flaws", state.flaws.map(x => [x.name, String(x.cost)]))}</div>
       <div class="print-columns two" style="margin-top:9px">${Object.entries(state.notes).filter(([,v]) => v).map(([key,value]) => `<section class="print-prose"><h3>${esc((p.noteFields || []).find(f => f.key === key)?.label || key)}</h3><p>${esc(value)}</p></section>`).join("")}</div>
@@ -627,7 +694,9 @@
     } else if (el.dataset.uiCustom) {
       state.ui.customNames[el.dataset.uiCustom] = el.value;
     } else if (el.dataset.special) {
-      state.specialBase[el.dataset.special] = Number(el.value);
+      const s = (profile().specials || []).find(x => x.id === el.dataset.special);
+      const start = s ? specialDefault(s, state.identity, state) : 0;
+      state.specialBase[el.dataset.special] = Math.max(start, Number(el.value));
     } else if (el.dataset.ui) {
       if (el.dataset.ui === "xpChoice") {
         const [group, trait] = el.value.split("||");
@@ -649,7 +718,7 @@
     if (el.dataset.priorityKind) {
       state.priorities[el.dataset.priorityKind][el.dataset.priorityCategory] = el.value;
       commit();
-    } else if (el.dataset.bind || el.dataset.ui || el.dataset.itemField || el.dataset.special) commit();
+    } else if (el.dataset.bind || el.dataset.ui || el.dataset.itemField || el.dataset.special || el.dataset.meritsField || el.dataset.flawsField) commit();
   });
 
   app.addEventListener("click", event => {
@@ -671,16 +740,37 @@
       state.terminologyId = terminologyId;
       return commit({ step: 0, scroll: true });
     }
+    if (action === "virtue-type") {
+      const g = allGroups().find(x => x.id === "virtues");
+      if (!g) return;
+      const axis = button.dataset.axis;
+      const next = button.dataset.value;
+      const currentType = state.virtueTypes?.[axis];
+      if (!axis || !next || currentType === next) return;
+      const beforeStarts = derivedSpecialStarts(state);
+      const trait = axis === "ethics" ? "Conscience / Conviction" : "Self-Control / Instinct";
+      const beforeFree = groupFreeDot(g, trait, state);
+      state.virtueTypes[axis] = next;
+      const afterFree = groupFreeDot(g, trait, state);
+      const row = state.ratings.virtues?.[trait];
+      if (row) row.base = Math.max(afterFree, Number(row.base || 0) + (afterFree - beforeFree));
+      preserveDerivedPurchases(beforeStarts);
+      if ((next === "conviction" || next === "instinct") && String(state.identity.moralityName || "").trim().toLowerCase() === "humanity") state.identity.moralityName = "Path of Enlightenment";
+      return commit();
+    }
     if (action === "rating") {
       const g = allGroups().find(x => x.id === button.dataset.group);
       if (!g) return;
       const custom = findCustom(g.id, button.dataset.trait);
       const value = Number(button.dataset.value);
-      if (custom) custom.base = custom.base === value ? Math.max(g.min, value - 1) : value;
+      const beforeStarts = isVirtueGroup(g) ? derivedSpecialStarts(state) : null;
+      const minimum = traitMin(g, button.dataset.trait, state);
+      if (custom) custom.base = custom.base === value ? Math.max(minimum, value - 1) : value;
       else {
         const row = state.ratings[g.id][button.dataset.trait];
-        row.base = row.base === value ? Math.max(g.min, value - 1) : value;
+        row.base = row.base === value ? Math.max(minimum, value - 1) : value;
       }
+      if (beforeStarts) preserveDerivedPurchases(beforeStarts);
       return commit();
     }
     if (action === "add-custom") {
