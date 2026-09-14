@@ -44,7 +44,7 @@ jobs:
           node --check /tmp/legacy-v20.js
       - name: Check shared-schema consumers
         run: python .github/scripts/validate_shared_v20.py
-      - name: Check Guided schema parity at runtime
+      - name: Check Guided schema parity and Merit Flaw rules at runtime
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -67,5 +67,20 @@ jobs:
           if (group('disciplines').pool !== shared.creationPackages.standard.disciplines) throw new Error('Standard Discipline pool parity failed');
           if (group('backgrounds').pool !== shared.creationPackages.standard.backgrounds) throw new Error('Standard Background pool parity failed');
           if (group('virtues').pool !== shared.creationPackages.standard.virtues) throw new Error('Virtue pool parity failed');
-          console.log('Guided shared-schema runtime parity passed.');
+
+          const monstrous = shared.resolveMeritFlawRule('monsterous', 'flaw');
+          if (!monstrous || monstrous.name !== 'Monstrous') throw new Error('Monstrous alias resolution failed');
+          const monstrousCap = monstrous.effects.find(e => e.type === 'traitCap' && e.group === 'attribute:Social' && e.trait === 'Appearance');
+          if (!monstrousCap || monstrousCap.cap !== 0) throw new Error('Monstrous Appearance effect failed');
+          const child = shared.resolveMeritFlawRule('Child', 'flaw');
+          if (!child.effects.some(e => e.type === 'creationTraitCap' && e.trait === 'Strength' && e.cap === 2)) throw new Error('Child creation cap failed');
+          const magicResistance = shared.resolveMeritFlawRule('Magic Resistance', 'merit');
+          const forbid = magicResistance.effects.find(e => e.type === 'forbidTraits');
+          if (!forbid || !forbid.traits.includes('Thaumaturgy') || !forbid.traits.includes('Necromancy')) throw new Error('Magic Resistance prohibition failed');
+          const naturalLeader = shared.resolveMeritFlawRule('Natural Leader', 'merit');
+          if (!naturalLeader.requirements.some(r => r.type === 'attributeMin' && r.trait === 'Charisma' && r.value === 3)) throw new Error('Natural Leader prerequisite failed');
+          const redList = shared.resolveMeritFlawRule('Red List', 'flaw');
+          if (!redList || redList.cost !== 7) throw new Error('Red List cost failed');
+          if (shared.meritFlawDetail('Additional Discipline: Protean') !== 'Protean') throw new Error('Additional Discipline detail parsing failed');
+          console.log('Guided shared-schema and Merit/Flaw runtime checks passed.');
           NODE
