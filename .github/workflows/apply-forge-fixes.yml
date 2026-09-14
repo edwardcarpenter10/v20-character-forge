@@ -1,0 +1,127 @@
+name: Apply Character Forge fixes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-forge-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch guided and advanced V20 forges
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text, old, new, label):
+              if new in text:
+                  return text
+              if old not in text:
+                  raise SystemExit(f'Could not find expected source for {label}')
+              return text.replace(old, new, 1)
+
+          # Guided forge: preserve the user's scroll position on ordinary edits.
+          p = Path('app.js')
+          text = p.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              'function commit({ step = activeStep, focus = "" } = {}) {\n    activeStep = Math.max(0, Math.min(STEPS.length - 1, step));\n    save();\n    render();\n    if (focus) document.querySelector(focus)?.focus();\n    window.scrollTo({ top: 0, behavior: "smooth" });\n  }',
+              'function commit({ step = activeStep, focus = "", scroll = false } = {}) {\n    activeStep = Math.max(0, Math.min(STEPS.length - 1, step));\n    save();\n    render();\n    if (focus) document.querySelector(focus)?.focus();\n    if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });\n  }',
+              'scroll-preserving commit'
+          )
+          text = replace_once(text, 'if (action === "step") return commit({ step: Number(button.dataset.step) });', 'if (action === "step") return commit({ step: Number(button.dataset.step), scroll: true });', 'step navigation scroll')
+          text = replace_once(text, 'return commit({ step: 0 });\n    }\n    if (action === "rating")', 'return commit({ step: 0, scroll: true });\n    }\n    if (action === "rating")', 'profile navigation scroll')
+          # Replace only the reset occurrence after the reset action.
+          text = text.replace('return commit({ step: 0 });\n    }\n  });\n\n  function exportCharacter()', 'return commit({ step: 0, scroll: true });\n    }\n  });\n\n  function exportCharacter()', 1)
+          text = text.replace('commit({ step: 6 });\n      } catch', 'commit({ step: 6, scroll: true });\n      } catch', 1)
+          p.write_text(text, encoding='utf-8')
+
+          # Advanced legacy forge: V20 creation fixes.
+          p = Path('legacy.html')
+          text = p.read_text(encoding='utf-8')
+
+          # Keep two independent virtue-type choices. Existing saves default to the traditional pair.
+          text = replace_once(
+              text,
+              'virtues:{conscience:1,selfControl:1,courage:1},virtueMode:`conscience`,moralityName:`Humanity`,morality:2,willpower:1,',
+              'virtues:{conscience:1,selfControl:1,courage:1},virtueMode:`conscience`,ethicsVirtue:`conscience`,controlVirtue:`selfControl`,moralityName:`Humanity`,morality:2,willpower:1,_derivedMoralityBase:2,_derivedWillpowerBase:1,',
+              'default virtue state'
+          )
+          text = replace_once(
+              text,
+              'virtues:{conscience:T(Number(e.virtues?.conscience)||t.virtues.conscience,1,w),selfControl:T(Number(e.virtues?.selfControl)||t.virtues.selfControl,1,w),courage:T(Number(e.virtues?.courage)||t.virtues.courage,1,w)},morality:T(Number(e.morality)||t.morality,0,w),willpower:T(Number(e.willpower)||t.willpower,0,w),',
+              'ethicsVirtue:e.ethicsVirtue===`conviction`?`conviction`:`conscience`,controlVirtue:e.controlVirtue===`instinct`?`instinct`:`selfControl`,virtues:{conscience:T(Number(e.virtues?.conscience??t.virtues.conscience),e.ethicsVirtue===`conviction`?0:1,w),selfControl:T(Number(e.virtues?.selfControl??t.virtues.selfControl),e.controlVirtue===`instinct`?0:1,w),courage:T(Number(e.virtues?.courage??t.virtues.courage),1,w)},morality:T(Number(e.morality??t.morality),0,w),willpower:T(Number(e.willpower??t.willpower),0,w),_derivedMoralityBase:Number(e._derivedMoralityBase??t._derivedMoralityBase),_derivedWillpowerBase:Number(e._derivedWillpowerBase??t._derivedWillpowerBase),',
+              'save normalization'
+          )
+
+          # Add a derived-rating synchronizer after autosave. Creation baselines exclude XP-purchased virtue dots.
+          save_effect = '(0,f.useEffect)(()=>{if(!o)return;let t=window.setTimeout(()=>{localStorage.setItem(oe,JSON.stringify(e)),a(`Saved ${new Date().toLocaleTimeString([],{hour:`numeric`,minute:`2-digit`})}`)},250);return()=>window.clearTimeout(t)},[e,o]);'
+          derive_effect = save_effect + '(0,f.useEffect)(()=>{t(t=>{let n=k=>t.xpPurchases.filter(e=>e.category===`virtue`&&e.key===k).reduce((e,t)=>e+Math.max(0,Number(t.to)-Number(t.from)),0),r=Math.max(t.ethicsVirtue===`conviction`?0:1,t.virtues.conscience-n(`conscience`)),i=Math.max(t.controlVirtue===`instinct`?0:1,t.virtues.selfControl-n(`selfControl`)),a=Math.max(1,t.virtues.courage-n(`courage`)),o=r+i,s=a,c=Number(t._derivedMoralityBase??o),l=Number(t._derivedWillpowerBase??s),u=t.morality===c?o:Math.max(t.morality,o),d=t.willpower===l?s:Math.max(t.willpower,s);return u===t.morality&&d===t.willpower&&c===o&&l===s?t:{...t,morality:u,willpower:d,_derivedMoralityBase:o,_derivedWillpowerBase:s}})},[e.virtues.conscience,e.virtues.selfControl,e.virtues.courage,e.ethicsVirtue,e.controlVirtue,e.xpPurchases]);'
+          text = replace_once(text, save_effect, derive_effect, 'derived morality and willpower effect')
+
+          # Creation-only virtue values use the correct 1/0 automatic starting dots.
+          text = replace_once(
+              text,
+              'Ae=(0,f.useMemo)(()=>({conscience:Math.max(1,e.virtues.conscience-(A[`virtue:conscience`]??0)),selfControl:Math.max(1,e.virtues.selfControl-(A[`virtue:selfControl`]??0)),courage:Math.max(1,e.virtues.courage-(A[`virtue:courage`]??0))}),[e.virtues,A])',
+              'Ae=(0,f.useMemo)(()=>({conscience:Math.max(e.ethicsVirtue===`conviction`?0:1,e.virtues.conscience-(A[`virtue:conscience`]??0)),selfControl:Math.max(e.controlVirtue===`instinct`?0:1,e.virtues.selfControl-(A[`virtue:selfControl`]??0)),courage:Math.max(1,e.virtues.courage-(A[`virtue:courage`]??0))}),[e.virtues,e.ethicsVirtue,e.controlVirtue,A])',
+              'creation virtue baselines'
+          )
+          text = replace_once(
+              text,
+              'Le=Ae.conscience+Ae.selfControl+Ae.courage-3,Re=Ae.conscience+Ae.selfControl,ze=Ae.courage,',
+              'Le=Ae.conscience+Ae.selfControl+Ae.courage-(e.ethicsVirtue===`conscience`?1:0)-(e.controlVirtue===`selfControl`?1:0)-1,Re=Ae.conscience+Ae.selfControl,ze=Ae.courage,',
+              'virtue creation spend'
+          )
+
+          # Sabbat preset: V20 More Inhuman Vampires package (4 Disciplines, 0 free Backgrounds).
+          text = replace_once(text, 'r=Math.max(0,Fe-3)*7,', 'r=Math.max(0,Fe-(e.identity.sect===`Sabbat`?4:3))*7,', 'Sabbat Discipline pool')
+          text = replace_once(text, 'a=Math.max(0,Ie-5),', 'a=Math.max(0,Ie-(e.identity.sect===`Sabbat`?0:5)),', 'Sabbat Background pool')
+          text = replace_once(text, '!k&&Fe<3&&n.push(`${3-Fe} starting Discipline dot${3-Fe==1?` remains`:`s remain`} unassigned.`),!k&&Ie<5&&n.push(`${5-Ie} Background dot${5-Ie==1?` remains`:`s remain`} unassigned.`),', '!k&&Fe<(e.identity.sect===`Sabbat`?4:3)&&n.push(`${(e.identity.sect===`Sabbat`?4:3)-Fe} starting Discipline dot${(e.identity.sect===`Sabbat`?4:3)-Fe===1?` remains`:`s remain`} unassigned.`),!k&&Ie<(e.identity.sect===`Sabbat`?0:5)&&n.push(`${(e.identity.sect===`Sabbat`?0:5)-Ie} Background dot${(e.identity.sect===`Sabbat`?0:5)-Ie===1?` remains`:`s remain`} unassigned.`),', 'Sabbat pool warnings')
+          text = replace_once(text, 'k||Fe>=3,k||Ie>=5&&Le>=7,', 'k||Fe>=(e.identity.sect===`Sabbat`?4:3),k||Ie>=(e.identity.sect===`Sabbat`?0:5)&&Le>=7,', 'Sabbat step completion')
+          text = replace_once(text, '`Assign 3 starting Discipline dots. The sheet records Discipline, Path, and ritual ratings through 10 while Generation limits remain enforced.`', '`${e.identity.sect===`Sabbat`?`Assign 4 starting Discipline dots (V20 More Inhuman Vampires preset).`:`Assign 3 starting Discipline dots.`} The sheet records Discipline, Path, and ritual ratings through 10 while Generation limits remain enforced.`', 'Discipline step text')
+          text = replace_once(text, '`Assign 5 Background dots and 7 Virtue dots, then tune Morality, Willpower, Merits, Flaws, and story details. All rated fields can record through 10.`', '`${e.identity.sect===`Sabbat`?`The Sabbat preset begins with 0 free Background dots.`:`Assign 5 Background dots.`} Assign 7 Virtue dots, then tune Morality, Willpower, Merits, Flaws, and story details. All rated fields can record through 10.`', 'Advantages step text')
+          text = replace_once(text, 'children:[Ie,` / 5`]', 'children:[Ie,` / `,e.identity.sect===`Sabbat`?0:5]', 'Background header pool')
+
+          # Independent virtue toggles. Switching preserves allocated creation dots by adding/removing the automatic dot.
+          old_toggle = '(0,p.jsxs)(`div`,{className:`virtue-mode`,children:[(0,p.jsx)(`button`,{type:`button`,className:e.virtueMode===`conscience`?`selected`:``,onClick:()=>t(e=>({...e,virtueMode:`conscience`,moralityName:e.moralityName===`Humanity`||!e.moralityName?`Humanity`:e.moralityName})),children:`Conscience & Self-Control`}),(0,p.jsx)(`button`,{type:`button`,className:e.virtueMode===`conviction`?`selected`:``,onClick:()=>t(e=>({...e,virtueMode:`conviction`,moralityName:e.moralityName===`Humanity`?`Path of Enlightenment`:e.moralityName})),children:`Conviction & Instinct`})]})'
+          new_toggle = '(0,p.jsxs)(`div`,{className:`virtue-mode`,children:[(0,p.jsx)(`button`,{type:`button`,className:e.ethicsVirtue===`conscience`?`selected`:``,onClick:()=>t(e=>e.ethicsVirtue===`conscience`?e:{...e,ethicsVirtue:`conscience`,virtues:{...e.virtues,conscience:e.virtues.conscience+1}}),children:`Conscience`}),(0,p.jsx)(`button`,{type:`button`,className:e.ethicsVirtue===`conviction`?`selected`:``,onClick:()=>t(e=>e.ethicsVirtue===`conviction`?e:{...e,ethicsVirtue:`conviction`,moralityName:e.moralityName===`Humanity`?`Path of Enlightenment`:e.moralityName,virtues:{...e.virtues,conscience:Math.max(0,e.virtues.conscience-1)}}),children:`Conviction`}),(0,p.jsx)(`button`,{type:`button`,className:e.controlVirtue===`selfControl`?`selected`:``,onClick:()=>t(e=>e.controlVirtue===`selfControl`?e:{...e,controlVirtue:`selfControl`,virtues:{...e.virtues,selfControl:e.virtues.selfControl+1}}),children:`Self-Control`}),(0,p.jsx)(`button`,{type:`button`,className:e.controlVirtue===`instinct`?`selected`:``,onClick:()=>t(e=>e.controlVirtue===`instinct`?e:{...e,controlVirtue:`instinct`,moralityName:e.moralityName===`Humanity`?`Path of Enlightenment`:e.moralityName,virtues:{...e.virtues,selfControl:Math.max(0,e.virtues.selfControl-1)}}),children:`Instinct`})]})'
+          text = replace_once(text, old_toggle, new_toggle, 'independent virtue toggles')
+
+          old_grid = 'let r=n===`conscience`?e.virtueMode===`conscience`?`Conscience`:`Conviction`:n===`selfControl`?e.virtueMode===`conscience`?`Self-Control`:`Instinct`:`Courage`;return(0,p.jsxs)(`div`,{children:[(0,p.jsx)(`span`,{children:r}),(0,p.jsx)(D,{value:e.virtues[n],max:w,min:1,label:r,onChange:e=>t(t=>({...t,virtues:{...t.virtues,[n]:e}}))})]},n)'
+          new_grid = 'let r=n===`conscience`?e.ethicsVirtue===`conscience`?`Conscience`:`Conviction`:n===`selfControl`?e.controlVirtue===`selfControl`?`Self-Control`:`Instinct`:`Courage`,i=n===`conscience`?e.ethicsVirtue===`conviction`?0:1:n===`selfControl`?e.controlVirtue===`instinct`?0:1:1;return(0,p.jsxs)(`div`,{children:[(0,p.jsx)(`span`,{children:r}),(0,p.jsx)(D,{value:e.virtues[n],max:w,min:i,label:r,onChange:e=>t(t=>({...t,virtues:{...t.virtues,[n]:e}}))})]},n)'
+          text = replace_once(text, old_grid, new_grid, 'virtue dot minimums and labels')
+
+          # Derived totals are displayed as totals, cannot be lowered below the derived creation value, and the ledger charges only the excess.
+          text = replace_once(text, '(0,p.jsx)(D,{value:e.morality,max:w,label:e.moralityName||`Morality`,onChange:e=>t(t=>({...t,morality:e}))})', '(0,p.jsx)(D,{value:e.morality,max:w,min:Re,label:e.moralityName||`Morality`,onChange:n=>t(t=>({...t,morality:Math.max(Re,n)}))})', 'morality rating floor')
+          text = replace_once(text, '(0,p.jsx)(D,{value:e.willpower,max:w,label:`Willpower`,onChange:e=>t(t=>({...t,willpower:e}))})', '(0,p.jsx)(D,{value:e.willpower,max:w,min:ze,label:`Willpower`,onChange:n=>t(t=>({...t,willpower:Math.max(ze,n)}))})', 'willpower rating floor')
+
+          # XP labels, path warning, and printed sheet use the independent choices.
+          text = text.replace('label:e.virtueMode===`conscience`?`Conscience`:`Conviction`', 'label:e.ethicsVirtue===`conscience`?`Conscience`:`Conviction`')
+          text = text.replace('label:e.virtueMode===`conscience`?`Self-Control`:`Instinct`', 'label:e.controlVirtue===`selfControl`?`Self-Control`:`Instinct`')
+          text = text.replace('e.virtueMode===`conviction`&&e.moralityName.trim().toLowerCase()===`humanity`', '(e.ethicsVirtue===`conviction`||e.controlVirtue===`instinct`)&&e.moralityName.trim().toLowerCase()===`humanity`')
+          text = text.replace('children:e.virtueMode===`conscience`?`Conscience`:`Conviction`', 'children:e.ethicsVirtue===`conscience`?`Conscience`:`Conviction`')
+          text = text.replace('children:e.virtueMode===`conscience`?`Self-Control`:`Instinct`', 'children:e.controlVirtue===`selfControl`?`Self-Control`:`Instinct`')
+
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit fixes
+        run: |
+          git config user.name "Lantern & Lever Forge Fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js legacy.html
+          if git diff --cached --quiet; then
+            echo "No changes needed."
+            exit 0
+          fi
+          git commit -m "Fix V20 creation math, virtues, and edit scrolling"
+          git push
