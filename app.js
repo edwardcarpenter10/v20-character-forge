@@ -188,12 +188,12 @@
     localStorage.setItem(C.storageKey, JSON.stringify(state));
     saveMessage = `Saved ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
   }
-  function commit({ step = activeStep, focus = "" } = {}) {
+  function commit({ step = activeStep, focus = "", scroll = false } = {}) {
     activeStep = Math.max(0, Math.min(STEPS.length - 1, step));
     save();
     render();
     if (focus) document.querySelector(focus)?.focus();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function current(group, trait) {
     const fixed = state.ratings[group]?.[trait];
@@ -656,7 +656,7 @@
     const button = event.target.closest("[data-action]");
     if (!button) return;
     const action = button.dataset.action;
-    if (action === "step") return commit({ step: Number(button.dataset.step) });
+    if (action === "step") return commit({ step: Number(button.dataset.step), scroll: true });
     if (action === "terminology") {
       if (!(C.terminologySets || []).some(set => set.id === button.dataset.terminology)) return;
       state.terminologyId = button.dataset.terminology;
@@ -669,7 +669,7 @@
       const terminologyId = state.terminologyId;
       state = freshState(button.dataset.profile);
       state.terminologyId = terminologyId;
-      return commit({ step: 0 });
+      return commit({ step: 0, scroll: true });
     }
     if (action === "rating") {
       const g = allGroups().find(x => x.id === button.dataset.group);
@@ -774,7 +774,7 @@
       const terminologyId = state.terminologyId;
       state = freshState(state.profileId);
       state.terminologyId = terminologyId;
-      return commit({ step: 0 });
+      return commit({ step: 0, scroll: true });
     }
   });
 
@@ -796,7 +796,7 @@
         const imported = JSON.parse(await file.text());
         if (imported.forge !== C.code) throw new Error(`This file belongs to ${imported.forge || "another"} Forge.`);
         state = normalize(imported);
-        commit({ step: 6 });
+        commit({ step: 6, scroll: true });
       } catch (error) { alert(`Could not import that character: ${error.message}`); }
     }, { once: true });
   }
