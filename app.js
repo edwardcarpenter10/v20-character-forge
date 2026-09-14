@@ -117,9 +117,12 @@
     return Number(g.min ?? 0);
   }
   function groupAllowance(g, p = profile(), sourceState = state) {
-    if (p.id === "vampire" && sourceState.moreInhumanVampires) {
-      if (g.id === "disciplines") return 4;
-      if (g.id === "backgrounds") return 0;
+    if (p.id === "vampire") {
+      const packages = C.sharedRules?.creationPackages;
+      const selected = sourceState.moreInhumanVampires ? packages?.moreInhuman : packages?.standard;
+      if (selected && g.id === "disciplines") return Number(selected.disciplines);
+      if (selected && g.id === "backgrounds") return Number(selected.backgrounds);
+      if (selected && g.id === "virtues") return Number(selected.virtues);
     }
     return Number(g.pool || 0);
   }
@@ -427,6 +430,8 @@
   function renderFoundation() {
     const p = profile();
     const fields = [...(C.identityFields || []), ...(p.identityFields || [])];
+    const standardPackage = C.sharedRules?.creationPackages?.standard;
+    const moreInhumanPackage = C.sharedRules?.creationPackages?.moreInhuman;
     return `<div class="step-heading"><div><span class="eyebrow">Step 1</span><h2>Choose the kind of character</h2></div><p>Each template carries its own starting pools and relevant supernatural traits. Storyteller Open keeps the rules visible without enforcing budgets.</p></div>
       <div class="mode-grid">${C.profiles.map(x => `<button class="mode-card ${x.id === p.id ? "selected" : ""}" type="button" data-action="profile" data-profile="${attr(x.id)}"><b>${esc(x.label)}</b><span>${esc(x.description)}</span><em>${esc(x.category)}</em></button>`).join("")}</div>
       ${renderTerminology()}
@@ -435,7 +440,7 @@
         <option value="experienced" ${state.buildMode === "experienced" ? "selected" : ""}>Experienced character (standard creation + XP)</option>
         <option value="open" ${state.buildMode === "open" ? "selected" : ""}>Storyteller Open build</option>
       </select><small>Experience purchases never alter or consume the creation freebie ledger.</small></label>
-      ${p.id === "vampire" ? `<div class="terminology-panel"><header><div><span class="eyebrow">Optional rule</span><h3>More Inhuman Vampires</h3></div><p>This creation package is independent of Sect. It trades all five starting Background dots for one additional starting Discipline dot.</p></header><div class="terminology-options" role="group" aria-label="More Inhuman Vampires"><button type="button" data-action="more-inhuman" data-value="off" class="${state.moreInhumanVampires ? "" : "selected"}" aria-pressed="${!state.moreInhumanVampires}"><b>Off · Standard V20</b><span>3 Discipline dots · 5 Background dots</span></button><button type="button" data-action="more-inhuman" data-value="on" class="${state.moreInhumanVampires ? "selected" : ""}" aria-pressed="${state.moreInhumanVampires}"><b>On · More Inhuman Vampires</b><span>4 Discipline dots · 0 Background dots</span></button></div></div>` : ""}</div></div>
+      ${p.id === "vampire" ? `<div class="terminology-panel"><header><div><span class="eyebrow">Optional rule</span><h3>More Inhuman Vampires</h3></div><p>This creation package is independent of Sect. It trades all five starting Background dots for one additional starting Discipline dot.</p></header><div class="terminology-options" role="group" aria-label="More Inhuman Vampires"><button type="button" data-action="more-inhuman" data-value="off" class="${state.moreInhumanVampires ? "" : "selected"}" aria-pressed="${!state.moreInhumanVampires}"><b>Off · ${esc(standardPackage?.label || "Standard V20")}</b><span>${standardPackage?.disciplines ?? 3} Discipline dots · ${standardPackage?.backgrounds ?? 5} Background dots</span></button><button type="button" data-action="more-inhuman" data-value="on" class="${state.moreInhumanVampires ? "selected" : ""}" aria-pressed="${state.moreInhumanVampires}"><b>On · ${esc(moreInhumanPackage?.label || "More Inhuman Vampires")}</b><span>${moreInhumanPackage?.disciplines ?? 4} Discipline dots · ${moreInhumanPackage?.backgrounds ?? 0} Background dots</span></button></div></div>` : ""}</div></div>
       <div class="section-card"><header><div><h3>Identity</h3><p>Record the character first; the numbers should serve the concept.</p></div></header><div class="section-body"><div class="field-grid three">${fields.map(identityField).join("")}</div></div></div>
       <p class="rule-note"><strong>${esc(p.label)}:</strong> ${esc(p.rulesNote)}</p>`;
   }

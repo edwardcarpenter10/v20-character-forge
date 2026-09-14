@@ -1,4 +1,8 @@
+const V20_SHARED = window.V20_SHARED;
+if (!V20_SHARED) throw new Error("Shared V20 schema was not loaded.");
+
 window.FORGE_CONFIG = {
+  sharedRules: V20_SHARED,
   code: "v20",
   storageKey: "lantern-lever-v20-forge-v4",
   mark: "V20",
@@ -34,21 +38,21 @@ window.FORGE_CONFIG = {
       category: "Full supernatural",
       description: "One of the Kindred or Cainites, shaped by Clan, Sect, Generation, Disciplines, blood, morality, and the Beast.",
       rulesNote: "Standard V20 creation uses 7/5/3 Attributes, 13/9/5 Abilities, three Discipline dots, five Background dots, seven Virtue dots, and 15 freebies. The optional More Inhuman Vampires toggle instead uses four Discipline dots and zero starting Background dots; it is independent of Sect. Conscience/Conviction and Self-Control/Instinct can be chosen independently; Conviction and Instinct begin at zero. Humanity/Path and Willpower derive automatically from Virtues.",
-      pools: { attributes: [7, 5, 3], abilities: [13, 9, 5], freebies: 15 },
-      flawCap: 7,
+      pools: { attributes: [7, 5, 3], abilities: [13, 9, 5], freebies: V20_SHARED.creationPackages.standard.freebies },
+      flawCap: V20_SHARED.creationPackages.standard.flawCap,
       identityFields: [
-        { key: "clan", label: "Clan / Bloodline", type: "select", options: ["Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", "Lasombra", "Malkavian", "Nosferatu", "Ravnos", "Toreador", "Tremere", "Tzimisce", "Ventrue", "Caitiff", "Bloodline / Other"] },
-        { key: "sect", label: "Sect", type: "select", options: ["Camarilla", "Sabbat", "Anarch Movement", "Independent / Autarkis", "Other / Chronicle-specific"] },
+        { key: "clan", label: "Clan / Bloodline", type: "select", options: V20_SHARED.clanOptions },
+        { key: "sect", label: "Sect", type: "select", options: V20_SHARED.sects },
         { key: "sire", label: "Sire", placeholder: "Sire or creator" },
-        { key: "generation", label: "Generation", type: "select", options: ["13th+", "12th", "11th", "10th", "9th", "8th", "7th", "6th", "5th", "4th", "3rd", "Storyteller-defined"] },
+        { key: "generation", label: "Generation", type: "select", options: V20_SHARED.generationOptions },
         { key: "moralityName", label: "Humanity / Path", placeholder: "Humanity or Path name", default: "Humanity" },
         { key: "coterie", label: "Coterie / Pack", placeholder: "Group and role" }
       ],
       requiredIdentity: ["clan", "sect", "generation", "moralityName"],
       groups: [
-        { id: "disciplines", kind: "discipline", label: "Disciplines", pool: 3, freebieCost: 7, xpNew: 10, xpMult: 5, traits: ["Animalism", "Auspex", "Celerity", "Chimerstry", "Dementation", "Dominate", "Fortitude", "Necromancy", "Obfuscate", "Obtenebration", "Potence", "Presence", "Protean", "Quietus", "Serpentis", "Thaumaturgy", "Vicissitude"], note: "The displayed XP multiplier is the in-clan rate. Use the advanced workspace or record a manual note for out-of-clan, Caitiff, blood magic, and elder costs." },
-        { id: "backgrounds", kind: "background", label: "Backgrounds", pool: 5, freebieCost: 1, xp: false, traits: ["Allies", "Alternate Identity", "Black Hand Membership", "Contacts", "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", "Resources", "Retainers", "Rituals", "Status"] },
-        { id: "virtues", kind: "virtue", label: "Virtues", pool: 7, freebieCost: 2, xpMult: 2, min: 0, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"], note: "Choose each Virtue pair independently. Conscience, Self-Control, and Courage begin with one automatic dot; Conviction and Instinct begin at zero. All vampires allocate seven Virtue dots after their automatic starting dots." }
+        { id: "disciplines", kind: "discipline", label: "Disciplines", pool: V20_SHARED.creationPackages.standard.disciplines, freebieCost: 7, xpNew: 10, xpMult: 5, traits: V20_SHARED.disciplines, note: "The displayed XP multiplier is the in-clan rate. Use the advanced workspace or record a manual note for out-of-clan, Caitiff, blood magic, and elder costs." },
+        { id: "backgrounds", kind: "background", label: "Backgrounds", pool: V20_SHARED.creationPackages.standard.backgrounds, freebieCost: 1, xp: false, traits: V20_SHARED.backgrounds },
+        { id: "virtues", kind: "virtue", label: "Virtues", pool: V20_SHARED.creationPackages.standard.virtues, freebieCost: 2, xpMult: 2, min: 0, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"], note: "Choose each Virtue pair independently. Conscience, Self-Control, and Courage begin with one automatic dot; Conviction and Instinct begin at zero. All vampires allocate seven Virtue dots after their automatic starting dots." }
       ],
       specials: [
         { id: "morality", label: "Humanity / Path", min: 0, max: 10, freebieCost: 1, xpMult: 2, default: 2, help: "Automatically begins at the sum of the two governing Virtues; freebies purchase only increases above that base." },
@@ -92,7 +96,7 @@ window.FORGE_CONFIG = {
       ],
       requiredIdentity: ["ghoulType", "moralityName"],
       groups: [
-        { id: "disciplines", kind: "discipline", label: "Disciplines", pool: 0, freebieCost: 10, xpNew: 20, xpMult: 10, freeDots: { Potence: 1 }, traits: ["Animalism", "Auspex", "Celerity", "Chimerstry", "Dementation", "Dominate", "Fortitude", "Necromancy", "Obfuscate", "Obtenebration", "Potence", "Presence", "Protean", "Quietus", "Serpentis", "Thaumaturgy", "Vicissitude"], note: "Potence 1 is the standard vitae-granted starting dot. Further access depends on domitor, age, Generation limits, training, and Storyteller approval." },
+        { id: "disciplines", kind: "discipline", label: "Disciplines", pool: 0, freebieCost: 10, xpNew: 20, xpMult: 10, freeDots: { Potence: 1 }, traits: V20_SHARED.disciplines, note: "Potence 1 is the standard vitae-granted starting dot. Further access depends on domitor, age, Generation limits, training, and Storyteller approval." },
         { id: "backgrounds", kind: "background", label: "Backgrounds", pool: 5, freebieCost: 1, xp: false, traits: ["Allies", "Contacts", "Domitor", "Fame", "Influence", "Mentor", "Resources", "Retainers", "Status"] },
         { id: "virtues", kind: "virtue", label: "Virtues", pool: 7, freebieCost: 2, xpMult: 2, min: 1, freeDots: { "Conscience / Conviction": 1, "Self-Control / Instinct": 1, Courage: 1 }, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"] }
       ],
@@ -126,7 +130,7 @@ window.FORGE_CONFIG = {
       ],
       requiredIdentity: ["family", "moralityName"],
       groups: [
-        { id: "disciplines", kind: "discipline", label: "Family Disciplines", pool: 1, freebieCost: 10, xpNew: 20, xpMult: 10, traits: ["Animalism", "Auspex", "Celerity", "Chimerstry", "Dementation", "Dominate", "Fortitude", "Necromancy", "Obfuscate", "Obtenebration", "Potence", "Presence", "Protean", "Quietus", "Serpentis", "Thaumaturgy", "Vicissitude"], note: "Choose from the family Discipline spread approved by the Storyteller; use custom traits for bloodline-specific powers." },
+        { id: "disciplines", kind: "discipline", label: "Family Disciplines", pool: 1, freebieCost: 10, xpNew: 20, xpMult: 10, traits: V20_SHARED.disciplines, note: "Choose from the family Discipline spread approved by the Storyteller; use custom traits for bloodline-specific powers." },
         { id: "backgrounds", kind: "background", label: "Backgrounds", pool: 5, freebieCost: 1, xp: false, traits: ["Allies", "Contacts", "Family", "Fame", "Influence", "Mentor", "Resources", "Retainers", "Status"] },
         { id: "virtues", kind: "virtue", label: "Virtues", pool: 7, freebieCost: 2, xpMult: 2, min: 1, freeDots: { "Conscience / Conviction": 1, "Self-Control / Instinct": 1, Courage: 1 }, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"] }
       ],
