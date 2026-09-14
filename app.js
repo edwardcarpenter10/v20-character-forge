@@ -152,6 +152,130 @@
     });
   }
 
+
+  function meritFlawEntries(sourceState = state) {
+    return [
+      ...(sourceState.merits || []).map(row => ({ ...row, kind: "merit", rule: C.sharedRules?.resolveMeritFlawRule?.(row.name, "merit") })),
+      ...(sourceState.flaws || []).map(row => ({ ...row, kind: "flaw", rule: C.sharedRules?.resolveMeritFlawRule?.(row.name, "flaw") }))
+    ];
+  }
+
+  function meritFlawEffects(sourceState = state) {
+    return meritFlawEntries(sourceState).flatMap(entry => (entry.rule?.effects || []).map(effect => ({ ...effect, entry })));
+  }
+
+  function syncMeritFlawEffects() {
+    if (state.profileId !== "vampire" || !C.sharedRules?.resolveMeritFlawRule) return;
+    state.effectMemory ||= {};
+    const effects = meritFlawEffects();
+    const caps = new Map();
+    const creationCaps = new Map();
+    let disciplineCap = null;
+    const forbidden = new Map();
+    const identitySets = new Map();
+    let specialWillpowerCap = null;
+
+    const tighten = (map, key, cap) => map.set(key, map.has(key) ? Math.min(map.get(key), Number(cap)) : Number(cap));
+    effects.forEach(effect => {
+      if (effect.type === "traitCap") tighten(caps, `${effect.group}::${effect.trait}`, effect.cap);
+      if (effect.type === "creationTraitCap") tighten(creationCaps, `${effect.group}::${effect.trait}`, effect.cap);
+      if (effect.type === "disciplineCap") disciplineCap = disciplineCap == null ? Number(effect.cap) : Math.min(disciplineCap, Number(effect.cap));
+      if (effect.type === "forbidTraits") (effect.traits || []).forEach(trait => tighten(forbidden, `${effect.group}::${trait}`, 0));
+      if (effect.type === "identitySet") identitySets.set(effect.key, effect.value);
+      if (effect.type === "specialCap" && effect.special === "willpower") specialWillpowerCap = specialWillpowerCap == null ? Number(effect.cap) : Math.min(specialWillpowerCap, Number(effect.cap));
+    });
+
+    const ratingKeys = new Set([...caps.keys(), ...creationCaps.keys(), ...forbidden.keys()]);
+    if (disciplineCap != null) {
+      const group = allGroups().find(g => g.id === "disciplines");
+      (group?.traits || []).forEach(trait => ratingKeys.add(`disciplines::${trait}`));
+    }
+    Object.keys(state.effectMemory).filter(k => k.startsWith("rating::")).forEach(k => ratingKeys.add(k.slice(8)));
+
+    ratingKeys.forEach(key => {
+      const [group, trait] = key.split("::");
+      const row = state.ratings[group]?.[trait];
+      if (!row) return;
+      let cap = null;
+      if (caps.has(key)) cap = caps.get(key);
+      if (forbidden.has(key)) cap = Math.min(cap ?? Infinity, 0);
+      if (creationCaps.has(key)) cap = Math.min(cap ?? Infinity, creationCaps.get(key));
+      if (group === "disciplines" && disciplineCap != null) cap = Math.min(cap ?? Infinity, disciplineCap);
+      const memoryKey = `rating::${key}`;
+      if (cap != null && Number.isFinite(cap)) {
+        const total = Number(row.base || 0) + Number(row.xp || 0);
+        if (total > cap && !state.effectMemory[memoryKey]) state.effectMemory[memoryKey] = clone(row);
+        if (total > cap) {
+          row.base = Math.min(Number(row.base || 0), cap);
+          row.xp = Math.max(0, Math.min(Number(row.xp || 0), cap - Number(row.base || 0)));
+        }
+      } else if (state.effectMemory[memoryKey]) {
+        state.ratings[group][trait] = clone(state.effectMemory[memoryKey]);
+        delete state.effectMemory[memoryKey];
+      }
+    });
+
+    const wpKey = "special::willpower";
+    if (specialWillpowerCap != null) {
+      const value = Number(state.specialBase.willpower || 0) + Number(state.specialXp.willpower || 0);
+      if (value > specialWillpowerCap && !state.effectMemory[wpKey]) state.effectMemory[wpKey] = { base: state.specialBase.willpower, xp: state.specialXp.willpower };
+      if (value > specialWillpowerCap) {
+        state.specialBase.willpower = Math.min(Number(state.specialBase.willpower || 0), specialWillpowerCap);
+        state.specialXp.willpower = Math.max(0, Math.min(Number(state.specialXp.willpower || 0), specialWillpowerCap - Number(state.specialBase.willpower || 0)));
+      }
+    } else if (state.effectMemory[wpKey]) {
+      state.specialBase.willpower = Number(state.effectMemory[wpKey].base || 0);
+      state.specialXp.willpower = Number(state.effectMemory[wpKey].xp || 0);
+      delete state.effectMemory[wpKey];
+    }
+
+    const identityKeys = new Set([...identitySets.keys(), ...Object.keys(state.effectMemory).filter(k => k.startsWith("identity::")).map(k => k.slice(10))]);
+    identityKeys.forEach(key => {
+      const memoryKey = `identity::${key}`;
+      if (identitySets.has(key)) {
+        if (!state.effectMemory[memoryKey]) state.effectMemory[memoryKey] = state.identity[key] ?? "";
+        state.identity[key] = identitySets.get(key);
+      } else if (memoryKey in state.effectMemory) {
+        state.identity[key] = state.effectMemory[memoryKey];
+        delete state.effectMemory[memoryKey];
+      }
+    });
+  }
+
+  function meritFlawRuleWarnings() {
+    if (state.profileId !== "vampire" || !C.sharedRules?.resolveMeritFlawRule) return [];
+    const entries = meritFlawEntries();
+    const hasNamed = (kind, name) => entries.some(entry => entry.kind === kind && C.sharedRules.normalizeMeritFlawName(entry.rule?.name || entry.name) === C.sharedRules.normalizeMeritFlawName(name));
+    const warnings = [];
+    entries.forEach(entry => {
+      const rule = entry.rule;
+      if (!rule) return;
+      if (rule.cost != null && Number(entry.cost || 0) !== Number(rule.cost)) warnings.push({ type: "warn", text: `${rule.name} is normally ${rule.cost} point${rule.cost === 1 ? "" : "s"}.` });
+      if (rule.summary) warnings.push({ type: "info", text: `${rule.name}: ${rule.summary}` });
+      (rule.conflicts || []).forEach(conflict => {
+        if (conflict.type === "clan" && (conflict.values || []).includes(state.identity.clan)) warnings.push({ type: "bad", text: conflict.message });
+        if (conflict.type === "virtueEthics" && state.virtueTypes?.ethics === conflict.value) warnings.push({ type: "bad", text: conflict.message });
+      });
+      (rule.requirements || []).forEach(req => {
+        if (req.type === "merit" && !hasNamed("merit", req.name)) warnings.push({ type: "bad", text: req.message });
+        if (req.type === "humanityMin") {
+          const moralityName = String(state.identity.moralityName || "Humanity").toLowerCase();
+          if (!moralityName.includes("humanity") || Number(state.specialBase.morality || 0) + Number(state.specialXp.morality || 0) < Number(req.value)) warnings.push({ type: "bad", text: req.message });
+        }
+      });
+      (rule.recommendations || []).forEach(rec => {
+        if (!hasNamed(rec.kind, rec.name)) warnings.push({ type: "warn", text: rec.message });
+      });
+      (rule.effects || []).forEach(effect => {
+        if (effect.type === "additionalInClanDiscipline") {
+          const detail = C.sharedRules.meritFlawDetail(entry.name);
+          if (!detail || !C.sharedRules.disciplines.includes(detail)) warnings.push({ type: "warn", text: "Additional Discipline needs a Discipline name after a colon, for example “Additional Discipline: Protean”." });
+        }
+      });
+    });
+    return warnings;
+  }
+
   function freshState(profileId = C.profiles[0].id) {
     const p = C.profiles.find(x => x.id === profileId) || C.profiles[0];
     const base = {
@@ -174,6 +298,7 @@
       items: {},
       merits: [],
       flaws: [],
+      effectMemory: {},
       notes: {},
       xp: { available: 0, awarded: 0, spent: 0, history: [] },
       ui: { xpGroup: "", xpTrait: "", award: 1, customNames: {}, itemGroup: "", itemName: "", itemLevel: 1, itemSource: "" },
@@ -225,6 +350,7 @@
     });
     merged.specialXp = { ...base.specialXp, ...(raw.specialXp || {}) };
     merged.items = { ...base.items, ...(raw.items || {}) };
+    merged.effectMemory = { ...base.effectMemory, ...(raw.effectMemory || {}) };
     merged.notes = { ...base.notes, ...(raw.notes || {}) };
     merged.xp = { ...base.xp, ...(raw.xp || {}) };
     merged.ui = { ...base.ui, ...(raw.ui || {}), customNames: { ...base.ui.customNames, ...(raw.ui?.customNames || {}) } };
@@ -244,6 +370,7 @@
   }
   function commit({ step = activeStep, focus = "", scroll = false } = {}) {
     activeStep = Math.max(0, Math.min(STEPS.length - 1, step));
+    syncMeritFlawEffects();
     save();
     render();
     if (focus) document.querySelector(focus)?.focus();
@@ -376,6 +503,7 @@
       if (!String(state.identity[key] || "").trim()) warnings.push({ type: "bad", text: `Choose ${field?.label || key}.` });
     });
     (p.customValidation ? p.customValidation(state, { current, specialDefault }) : []).forEach(w => warnings.push(w));
+    meritFlawRuleWarnings().forEach(w => warnings.push(w));
     if (!warnings.some(w => w.type === "bad")) warnings.unshift({ type: "good", text: state.buildMode === "open" ? "Open build: budgets are guidance, not blockers." : "No blocking creation conflicts found." });
     return { lines, warnings, freebiePool, freebieSpent, remaining, secondaryPools };
   }
@@ -715,7 +843,13 @@
       const kind = el.dataset.meritsField ? "merits" : "flaws";
       const field = el.dataset.meritsField || el.dataset.flawsField;
       const row = state[kind].find(x => x.id === el.dataset.id);
-      if (row) row[field] = el.type === "number" ? Number(el.value) : el.value;
+      if (row) {
+        row[field] = el.type === "number" ? Number(el.value) : el.value;
+        if (field === "name") {
+          const rule = C.sharedRules?.resolveMeritFlawRule?.(row.name, kind === "merits" ? "merit" : "flaw");
+          if (rule?.cost != null) row.cost = Number(rule.cost);
+        }
+      }
     } else return;
     save();
   });
@@ -902,5 +1036,6 @@
     }, { once: true });
   }
 
+  syncMeritFlawEffects();
   render();
 })();
