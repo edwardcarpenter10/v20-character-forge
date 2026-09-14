@@ -1,0 +1,35 @@
+name: Validate Character Forge
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'config.js'
+      - 'legacy.html'
+      - '.github/workflows/validate-forge.yml'
+  pull_request:
+    paths:
+      - 'app.js'
+      - 'config.js'
+      - 'legacy.html'
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check guided JavaScript
+        run: |
+          node --check app.js
+          node --check config.js
+      - name: Check advanced embedded JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('legacy.html').read_text(encoding='utf-8')
+          match = re.search(r'<script type="module">(.*?)</script>', html, re.S)
+          if not match:
+              raise SystemExit('Embedded module script not found')
+          Path('/tmp/legacy-v20.js').write_text(match.group(1), encoding='utf-8')
+          PY
+          node --check /tmp/legacy-v20.js
