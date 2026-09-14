@@ -1,0 +1,63 @@
+name: Finalize V20 Character Forge fixes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-v20-forge-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Finalize V20 compatibility and ledger display
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if new in text:
+                  return text
+              if old not in text:
+                  raise SystemExit(f'Could not find expected source for {label}')
+              return text.replace(old, new, 1)
+
+          p = Path('legacy.html')
+          text = p.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              'ethicsVirtue:e.ethicsVirtue===`conviction`?`conviction`:`conscience`,controlVirtue:e.controlVirtue===`instinct`?`instinct`:`selfControl`,virtues:{conscience:T(Number(e.virtues?.conscience??t.virtues.conscience),e.ethicsVirtue===`conviction`?0:1,w),selfControl:T(Number(e.virtues?.selfControl??t.virtues.selfControl),e.controlVirtue===`instinct`?0:1,w),courage:T(Number(e.virtues?.courage??t.virtues.courage),1,w)},',
+              'ethicsVirtue:e.ethicsVirtue===`conviction`||e.virtueMode===`conviction`?`conviction`:`conscience`,controlVirtue:e.controlVirtue===`instinct`||e.virtueMode===`conviction`?`instinct`:`selfControl`,virtues:{conscience:T(Number(e.virtues?.conscience??t.virtues.conscience),e.ethicsVirtue===`conviction`||e.virtueMode===`conviction`?0:1,w),selfControl:T(Number(e.virtues?.selfControl??t.virtues.selfControl),e.controlVirtue===`instinct`||e.virtueMode===`conviction`?0:1,w),courage:T(Number(e.virtues?.courage??t.virtues.courage),1,w)},',
+              'legacy virtue-mode migration'
+          )
+          p.write_text(text, encoding='utf-8')
+
+          # Guided ledger: flaws are a credit, not a negative expenditure. Preserve arithmetic; make the UI explicit.
+          p = Path('app.js')
+          text = p.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              'if (flawCredit) lines.push({ label: "Flaw credit", spent: flawTotal, allowance: Number(p.flawCap ?? 7), extra: 0, cost: -flawCredit });',
+              'if (flawCredit) lines.push({ label: "Flaw credit", spent: flawTotal, allowance: Number(p.flawCap ?? 7), extra: 0, cost: 0, credit: flawCredit });',
+              'flaw credit ledger row'
+          )
+          text = replace_once(
+              text,
+              '${x.spent} / ${x.allowance}${x.cost ? ` · ${x.cost > 0 ? "+" : ""}${x.cost} FP` : ""}</b></div>`).join("")}',
+              '${x.spent} / ${x.allowance}${x.credit ? ` · +${x.credit} freebies` : x.cost ? ` · ${x.cost > 0 ? "+" : ""}${x.cost} FP` : ""}</b></div>`).join("")}',
+              'flaw credit rendering'
+          )
+          p.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit fixes
+        run: |
+          git config user.name "Lantern & Lever Forge Fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js legacy.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Finalize V20 virtue migration and flaw credit display"
+          git push
