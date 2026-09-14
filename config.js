@@ -33,7 +33,7 @@ window.FORGE_CONFIG = {
       label: "Vampire",
       category: "Full supernatural",
       description: "One of the Kindred or Cainites, shaped by Clan, Sect, Generation, Disciplines, blood, morality, and the Beast.",
-      rulesNote: "Standard V20 creation uses 7/5/3 Attributes, 13/9/5 Abilities, three Discipline dots, five Background dots, seven Virtue dots, and 15 freebies. Sabbat creation uses four Discipline dots, zero free Background dots, seven Virtue dots, and 15 freebies. Conscience/Conviction and Self-Control/Instinct can be chosen independently; Conviction and Instinct begin at zero. Humanity/Path and Willpower derive automatically from Virtues.",
+      rulesNote: "Standard V20 creation uses 7/5/3 Attributes, 13/9/5 Abilities, three Discipline dots, five Background dots, seven Virtue dots, and 15 freebies. The optional More Inhuman Vampires toggle instead uses four Discipline dots and zero starting Background dots; it is independent of Sect. Conscience/Conviction and Self-Control/Instinct can be chosen independently; Conviction and Instinct begin at zero. Humanity/Path and Willpower derive automatically from Virtues.",
       pools: { attributes: [7, 5, 3], abilities: [13, 9, 5], freebies: 15 },
       flawCap: 7,
       identityFields: [

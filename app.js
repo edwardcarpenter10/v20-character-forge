@@ -117,7 +117,7 @@
     return Number(g.min ?? 0);
   }
   function groupAllowance(g, p = profile(), sourceState = state) {
-    if (p.id === "vampire" && sourceState.identity?.sect === "Sabbat") {
+    if (p.id === "vampire" && sourceState.moreInhumanVampires) {
       if (g.id === "disciplines") return 4;
       if (g.id === "backgrounds") return 0;
     }
@@ -157,6 +157,7 @@
       profileId: p.id,
       terminologyId: C.terminologySets?.[0]?.id || "default",
       buildMode: "standard",
+      moreInhumanVampires: false,
       virtueTypes: { ethics: "conscience", control: "selfControl" },
       identity: { name: "", player: "", chronicle: "", concept: "", nature: "", demeanor: "" },
       priorities: {
@@ -433,7 +434,8 @@
         <option value="standard" ${state.buildMode === "standard" ? "selected" : ""}>Standard starting character</option>
         <option value="experienced" ${state.buildMode === "experienced" ? "selected" : ""}>Experienced character (standard creation + XP)</option>
         <option value="open" ${state.buildMode === "open" ? "selected" : ""}>Storyteller Open build</option>
-      </select><small>Experience purchases never alter or consume the creation freebie ledger.</small></label></div></div>
+      </select><small>Experience purchases never alter or consume the creation freebie ledger.</small></label>
+      ${p.id === "vampire" ? `<div class="terminology-panel"><header><div><span class="eyebrow">Optional rule</span><h3>More Inhuman Vampires</h3></div><p>This creation package is independent of Sect. It trades all five starting Background dots for one additional starting Discipline dot.</p></header><div class="terminology-options" role="group" aria-label="More Inhuman Vampires"><button type="button" data-action="more-inhuman" data-value="off" class="${state.moreInhumanVampires ? "" : "selected"}" aria-pressed="${!state.moreInhumanVampires}"><b>Off · Standard V20</b><span>3 Discipline dots · 5 Background dots</span></button><button type="button" data-action="more-inhuman" data-value="on" class="${state.moreInhumanVampires ? "selected" : ""}" aria-pressed="${state.moreInhumanVampires}"><b>On · More Inhuman Vampires</b><span>4 Discipline dots · 0 Background dots</span></button></div></div>` : ""}</div></div>
       <div class="section-card"><header><div><h3>Identity</h3><p>Record the character first; the numbers should serve the concept.</p></div></header><div class="section-body"><div class="field-grid three">${fields.map(identityField).join("")}</div></div></div>
       <p class="rule-note"><strong>${esc(p.label)}:</strong> ${esc(p.rulesNote)}</p>`;
   }
@@ -738,6 +740,11 @@
       state = freshState(button.dataset.profile);
       state.terminologyId = terminologyId;
       return commit({ step: 0, scroll: true });
+    }
+    if (action === "more-inhuman") {
+      if (profile().id !== "vampire") return;
+      state.moreInhumanVampires = button.dataset.value === "on";
+      return commit();
     }
     if (action === "virtue-type") {
       const g = allGroups().find(x => x.id === "virtues");
