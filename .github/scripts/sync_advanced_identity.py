@@ -20,11 +20,16 @@ replacements = [
         '(0,p.jsxs)(`span`,{children:[(0,p.jsx)(`b`,{children:be.clanLabel}),[e.identity.clan,e.identity.bloodline].filter(Boolean).join(` · `)||`—`]}),(0,p.jsxs)(`span`,{children:[(0,p.jsx)(`b`,{children:be.sireLabel}),e.identity.sire||`—`]})',
         '(0,p.jsxs)(`span`,{children:[(0,p.jsx)(`b`,{children:be.clanLabel}),[e.identity.clan,e.identity.bloodline].filter(Boolean).join(` · `)||`—`]}),(0,p.jsxs)(`span`,{children:[(0,p.jsx)(`b`,{children:`Coterie / Pack`}),e.identity.coterie||`—`]}),(0,p.jsxs)(`span`,{children:[(0,p.jsx)(`b`,{children:be.sireLabel}),e.identity.sire||`—`]})'
     ),
+    (
+        '`${e.moreInhumanVampires?`The Sabbat preset begins with 0 free Background dots.`:`Assign 5 Background dots.`}',
+        '`${e.moreInhumanVampires?`More Inhuman Vampires begins with 0 free Background dots.`:`Assign 5 Background dots.`}'
+    ),
 ]
 
 for old, new in replacements:
-    if old not in text:
-        raise SystemExit(f'Expected Advanced identity fragment not found: {old[:100]}')
-    text = text.replace(old, new, 1)
+    if old in text:
+        text = text.replace(old, new, 1)
+    elif new not in text:
+        raise SystemExit(f'Expected Advanced parity fragment not found: {old[:100]}')
 
 path.write_text(text, encoding='utf-8')
