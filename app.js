@@ -196,20 +196,22 @@
       const [group, trait] = key.split("::");
       const row = state.ratings[group]?.[trait];
       if (!row) return;
-      let cap = null;
-      if (caps.has(key)) cap = caps.get(key);
-      if (forbidden.has(key)) cap = Math.min(cap ?? Infinity, 0);
-      if (creationCaps.has(key)) cap = Math.min(cap ?? Infinity, creationCaps.get(key));
-      if (group === "disciplines" && disciplineCap != null) cap = Math.min(cap ?? Infinity, disciplineCap);
+      let permanentCap = null;
+      if (caps.has(key)) permanentCap = caps.get(key);
+      if (forbidden.has(key)) permanentCap = Math.min(permanentCap ?? Infinity, 0);
+      if (group === "disciplines" && disciplineCap != null) permanentCap = Math.min(permanentCap ?? Infinity, disciplineCap);
+      const creationCap = creationCaps.has(key) ? creationCaps.get(key) : null;
       const memoryKey = `rating::${key}`;
-      if (cap != null && Number.isFinite(cap)) {
-        const total = Number(row.base || 0) + Number(row.xp || 0);
-        if (total > cap && !state.effectMemory[memoryKey]) state.effectMemory[memoryKey] = clone(row);
-        if (total > cap) {
-          row.base = Math.min(Number(row.base || 0), cap);
-          row.xp = Math.max(0, Math.min(Number(row.xp || 0), cap - Number(row.base || 0)));
-        }
-      } else if (state.effectMemory[memoryKey]) {
+      const total = Number(row.base || 0) + Number(row.xp || 0);
+      const permanentExceeded = permanentCap != null && Number.isFinite(permanentCap) && total > permanentCap;
+      const creationExceeded = creationCap != null && Number(row.base || 0) > creationCap;
+      if ((permanentExceeded || creationExceeded) && !state.effectMemory[memoryKey]) state.effectMemory[memoryKey] = clone(row);
+      if (permanentExceeded) {
+        row.base = Math.min(Number(row.base || 0), permanentCap);
+        row.xp = Math.max(0, Math.min(Number(row.xp || 0), permanentCap - Number(row.base || 0)));
+      }
+      if (creationExceeded) row.base = Math.min(Number(row.base || 0), creationCap);
+      if (!permanentExceeded && !creationExceeded && permanentCap == null && creationCap == null && state.effectMemory[memoryKey]) {
         state.ratings[group][trait] = clone(state.effectMemory[memoryKey]);
         delete state.effectMemory[memoryKey];
       }
