@@ -33,7 +33,7 @@ window.FORGE_CONFIG = {
       label: "Vampire",
       category: "Full supernatural",
       description: "One of the Kindred or Cainites, shaped by Clan, Sect, Generation, Disciplines, blood, morality, and the Beast.",
-      rulesNote: "Standard V20 creation uses 7/5/3 Attributes, 13/9/5 Abilities, three Discipline dots, five Background dots, seven Virtue dots, and 15 freebies. Sabbat creation uses four Discipline dots, zero free Background dots, five Virtue dots, and 15 freebies. Conscience/Conviction and Self-Control/Instinct can be chosen independently; Conviction and Instinct begin at zero. Humanity/Path and Willpower derive automatically from Virtues.",
+      rulesNote: "Standard V20 creation uses 7/5/3 Attributes, 13/9/5 Abilities, three Discipline dots, five Background dots, seven Virtue dots, and 15 freebies. Sabbat creation uses four Discipline dots, zero free Background dots, seven Virtue dots, and 15 freebies. Conscience/Conviction and Self-Control/Instinct can be chosen independently; Conviction and Instinct begin at zero. Humanity/Path and Willpower derive automatically from Virtues.",
       pools: { attributes: [7, 5, 3], abilities: [13, 9, 5], freebies: 15 },
       flawCap: 7,
       identityFields: [
@@ -48,7 +48,7 @@ window.FORGE_CONFIG = {
       groups: [
         { id: "disciplines", kind: "discipline", label: "Disciplines", pool: 3, freebieCost: 7, xpNew: 10, xpMult: 5, traits: ["Animalism", "Auspex", "Celerity", "Chimerstry", "Dementation", "Dominate", "Fortitude", "Necromancy", "Obfuscate", "Obtenebration", "Potence", "Presence", "Protean", "Quietus", "Serpentis", "Thaumaturgy", "Vicissitude"], note: "The displayed XP multiplier is the in-clan rate. Use the advanced workspace or record a manual note for out-of-clan, Caitiff, blood magic, and elder costs." },
         { id: "backgrounds", kind: "background", label: "Backgrounds", pool: 5, freebieCost: 1, xp: false, traits: ["Allies", "Alternate Identity", "Black Hand Membership", "Contacts", "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", "Resources", "Retainers", "Rituals", "Status"] },
-        { id: "virtues", kind: "virtue", label: "Virtues", pool: 7, freebieCost: 2, xpMult: 2, min: 0, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"], note: "Choose each Virtue pair independently. Conscience, Self-Control, and Courage begin with one automatic dot; Conviction and Instinct begin at zero. Sabbat characters allocate five Virtue dots; other vampires allocate seven." }
+        { id: "virtues", kind: "virtue", label: "Virtues", pool: 7, freebieCost: 2, xpMult: 2, min: 0, traits: ["Conscience / Conviction", "Self-Control / Instinct", "Courage"], note: "Choose each Virtue pair independently. Conscience, Self-Control, and Courage begin with one automatic dot; Conviction and Instinct begin at zero. All vampires allocate seven Virtue dots after their automatic starting dots." }
       ],
       specials: [
         { id: "morality", label: "Humanity / Path", min: 0, max: 10, freebieCost: 1, xpMult: 2, default: 2, help: "Automatically begins at the sum of the two governing Virtues; freebies purchase only increases above that base." },

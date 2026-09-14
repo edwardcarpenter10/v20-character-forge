@@ -120,7 +120,6 @@
     if (p.id === "vampire" && sourceState.identity?.sect === "Sabbat") {
       if (g.id === "disciplines") return 4;
       if (g.id === "backgrounds") return 0;
-      if (g.id === "virtues") return 5;
     }
     return Number(g.pool || 0);
   }
