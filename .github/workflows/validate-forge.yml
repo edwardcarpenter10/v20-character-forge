@@ -4,25 +4,33 @@ on:
   push:
     branches: [main]
     paths:
+      - 'shared-v20.js'
+      - 'index.html'
       - 'app.js'
       - 'config.js'
       - 'legacy.html'
+      - '.github/scripts/validate_shared_v20.py'
       - '.github/workflows/validate-forge.yml'
   pull_request:
     paths:
+      - 'shared-v20.js'
+      - 'index.html'
       - 'app.js'
       - 'config.js'
       - 'legacy.html'
+      - '.github/scripts/validate_shared_v20.py'
+      - '.github/workflows/validate-forge.yml'
 jobs:
-  syntax:
+  syntax-and-parity:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Check guided JavaScript
         run: |
+          node --check shared-v20.js
           node --check app.js
           node --check config.js
-      - name: Check advanced embedded JavaScript
+      - name: Check Advanced embedded JavaScript
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -34,3 +42,30 @@ jobs:
           Path('/tmp/legacy-v20.js').write_text(match.group(1), encoding='utf-8')
           PY
           node --check /tmp/legacy-v20.js
+      - name: Check shared-schema consumers
+        run: python .github/scripts/validate_shared_v20.py
+      - name: Check Guided schema parity at runtime
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const context = { window: {} };
+          vm.createContext(context);
+          vm.runInContext(fs.readFileSync('shared-v20.js', 'utf8'), context);
+          vm.runInContext(fs.readFileSync('config.js', 'utf8'), context);
+          const shared = context.window.V20_SHARED;
+          const config = context.window.FORGE_CONFIG;
+          const vampire = config.profiles.find(p => p.id === 'vampire');
+          const field = key => vampire.identityFields.find(f => f.key === key);
+          const group = id => vampire.groups.find(g => g.id === id);
+          const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+          if (!same(field('clan').options, shared.clanOptions)) throw new Error('Clan parity failed');
+          if (!same(field('sect').options, shared.sects)) throw new Error('Sect parity failed');
+          if (!same(field('generation').options, shared.generationOptions)) throw new Error('Generation parity failed');
+          if (!same(group('disciplines').traits, shared.disciplines)) throw new Error('Discipline parity failed');
+          if (!same(group('backgrounds').traits, shared.backgrounds)) throw new Error('Background parity failed');
+          if (group('disciplines').pool !== shared.creationPackages.standard.disciplines) throw new Error('Standard Discipline pool parity failed');
+          if (group('backgrounds').pool !== shared.creationPackages.standard.backgrounds) throw new Error('Standard Background pool parity failed');
+          if (group('virtues').pool !== shared.creationPackages.standard.virtues) throw new Error('Virtue pool parity failed');
+          console.log('Guided shared-schema runtime parity passed.');
+          NODE
