@@ -284,6 +284,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .trait-row { min-height: 37px; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px dotted color-mix(in srgb, var(--paper-line) 65%, var(--paper)); }
 .trait-row > span { min-width: 0; font: 500 .88rem Georgia, serif; overflow-wrap: anywhere; }
 .trait-row > span small { display: block; color: #786d60; font: .65rem/1.2 system-ui, sans-serif; }
+.trait-specialty { display: block; margin: 2px 0 9px; font: .71rem/1.4 system-ui, sans-serif; color: var(--paper-muted); }
+.trait-specialty > span { display: block; margin-bottom: 3px; }
+.trait-specialty input { display: block; width: 100%; min-width: 0; padding: 7px 9px; background: #fff9ef; color: var(--ink); border: 1px solid var(--paper-line); border-radius: 4px; font: .84rem system-ui, sans-serif; }
+.trait-specialty input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dots { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
 .dot {
   width: 18px;
