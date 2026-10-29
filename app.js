@@ -301,6 +301,7 @@
       },
       ratings: {},
       customRatings: {},
+      specializations: {},
       specialBase: {},
       specialXp: {},
       items: {},
@@ -352,6 +353,7 @@
       });
     });
     merged.customRatings = { ...base.customRatings, ...(raw.customRatings || {}) };
+    merged.specializations = { ...base.specializations, ...(raw.specializations || {}) };
     merged.specialBase = { ...base.specialBase, ...(raw.specialBase || {}) };
     (C.profiles.find(p => p.id === merged.profileId)?.specials || []).forEach(s => {
       if (s.id === "morality" || s.id === "willpower") merged.specialBase[s.id] = Math.max(specialDefault(s, merged.identity, merged), Number(merged.specialBase[s.id] ?? 0));
@@ -505,6 +507,15 @@
       if (pool.remaining < 0 && state.buildMode !== "open") warnings.push({ type: "bad", text: `${pool.label} are overspent by ${Math.abs(pool.remaining)}.` });
       if (pool.remaining > 0 && state.buildMode !== "open") warnings.push({ type: "warn", text: `${pool.remaining} ${pool.label.toLowerCase()} remain.` });
     });
+    allGroups(p).filter(g => ["attribute", "ability"].includes(g.kind)).forEach(g => {
+      g.traits.concat((state.customRatings[g.id] || []).map(row => row.id)).forEach(trait => {
+        if (current(g.id, trait) < 4) return;
+        const chosen = String(state.specializations[`${g.id}:${trait}`] || "").trim();
+        if (!chosen) warnings.push({ type: "warn", text: `${trait} at rating 4+ needs one specialization.` });
+        else if (chosen.split(",").filter(x => x.trim()).length !== 1)
+          warnings.push({ type: "warn", text: `${trait}: choose one specialization, not one for every dot above 3.` });
+      });
+    });
     if (!state.identity.name.trim()) warnings.push({ type: "warn", text: "The character still needs a name." });
     (p.requiredIdentity || []).forEach(key => {
       const field = [...(C.identityFields || []), ...(p.identityFields || [])].find(f => f.key === key);
@@ -585,12 +596,26 @@
     return `<div class="priority-bar">${categories.map(category => `<label class="priority-chip"><span>${esc(category)}</span><select data-priority-kind="${kind}" data-priority-category="${attr(category)}">${PRIORITY_NAMES.map((name, i) => `<option value="${name}" ${state.priorities[kind][category] === name ? "selected" : ""}>${name[0].toUpperCase() + name.slice(1)} · ${profile().pools[kind][i]} dots</option>`).join("")}</select></label>`).join("")}</div>`;
   }
 
+  function renderTraitSpecialty(g, trait) {
+    if (!["attribute", "ability"].includes(g.kind) || current(g.id, trait) < 4) return "";
+    const key = `${g.id}:${trait}`;
+    return `<label class="trait-specialty"><span>Specialization (one at 4+)</span><input type="text" data-trait-specialization="${attr(key)}" value="${attr(state.specializations[key] || "")}" placeholder="Choose one specialization"></label>`;
+  }
+  function traitSpecializationRows() {
+    return allGroups().filter(g => ["attribute", "ability"].includes(g.kind)).flatMap(g => {
+      const fixed = g.traits.map(t => [t, traitLabel(g, t, state)]);
+      const custom = (state.customRatings[g.id] || []).map(r => [r.id, r.name]);
+      return fixed.concat(custom).filter(([trait]) => current(g.id, trait) >= 4)
+        .map(([trait, label]) => [label, String(state.specializations[`${g.id}:${trait}`] || "").trim()])
+        .filter(([, value]) => value);
+    });
+  }
   function renderTraitColumn(g) {
     const spent = groupSpend(g);
     const allowance = g.poolKind ? poolFor(g.poolKind, g.category) : Number(g.pool || 0);
     const budgetClass = spent > allowance ? "over" : spent === allowance ? "ok" : "";
-    const fixed = g.traits.map(trait => `<div class="trait-row"><span>${esc(trait)}</span>${renderDots(g, trait)}</div>`).join("");
-    const custom = (state.customRatings[g.id] || []).map(row => `<div class="trait-row"><span>${esc(row.name)}<small>Custom</small></span>${renderDots(g, row.id)}<button class="icon-button" type="button" data-action="remove-custom" data-group="${attr(g.id)}" data-id="${row.id}" aria-label="Remove ${attr(row.name)}">×</button></div>`).join("");
+    const fixed = g.traits.map(trait => `<div class="trait-row"><span>${esc(trait)}</span>${renderDots(g, trait)}</div>${renderTraitSpecialty(g, trait)}`).join("");
+    const custom = (state.customRatings[g.id] || []).map(row => `<div class="trait-row"><span>${esc(row.name)}<small>Custom</small></span>${renderDots(g, row.id)}<button class="icon-button" type="button" data-action="remove-custom" data-group="${attr(g.id)}" data-id="${row.id}" aria-label="Remove ${attr(row.name)}">×</button></div>${renderTraitSpecialty(g, row.id)}`).join("");
     return `<section class="trait-column"><header><h3>${esc(groupLabel(g))}</h3><span class="budget-label ${budgetClass}">${spent} / ${allowance}</span></header>${fixed}${custom}
       <div class="field-grid two"><label class="field"><span>Custom trait</span><input data-ui-custom="${attr(g.id)}" value="${attr(state.ui.customNames[g.id] || "")}" placeholder="Name"></label><button class="button light add-row" type="button" data-action="add-custom" data-group="${attr(g.id)}">Add</button></div>
     </section>`;
@@ -759,6 +784,7 @@
         <section class="review-block"><h3>Creation ledger</h3><div class="review-trait"><span>Freebies</span><b>${l.freebieSpent} / ${l.freebiePool}</b></div>${Object.values(l.secondaryPools).map(pool => `<div class="review-trait"><span>${esc(pool.label)}</span><b>${pool.spent} / ${pool.amount}</b></div>`).join("")}<div class="review-trait"><span>XP available</span><b>${state.xp.available}</b></div>${l.warnings.map(w => `<p>${w.type === "bad" ? "⚠ " : ""}${esc(w.text)}</p>`).join("")}</section>
         ${groups.map(g => { const rows = reviewRows(g); return rows.length ? `<section class="review-block"><h3>${esc(groupLabel(g))}</h3>${rows.map(([name, value]) => `<div class="review-trait"><span>${esc(name)}</span><b>${dotsText(value, Math.max(5, value))}</b></div>`).join("")}</section>` : ""; }).join("")}
         ${(p.itemGroups || []).map(g => (state.items[g.id] || []).length ? `<section class="review-block"><h3>${esc(groupLabel(g))}</h3>${state.items[g.id].map(x => `<div class="review-trait"><span>${esc(x.name || "Unnamed")}</span><b>${esc(x.source || "")} · ${Number(x.rating || 1)}</b></div>`).join("")}</section>` : "").join("")}
+        ${traitSpecializationRows().length ? `<section class="review-block"><h3>Specializations</h3>${traitSpecializationRows().map(([name, value]) => `<div class="review-trait"><span>${esc(name)}</span><b>${esc(value)}</b></div>`).join("")}</section>` : ""}
         <section class="review-block"><h3>Merits and Flaws</h3>${state.merits.concat(state.flaws).map(x => `<div class="review-trait"><span>${esc(x.name || "Unnamed")}</span><b>${x.cost}</b></div>`).join("") || "<p>None recorded.</p>"}</section>
         <section class="review-block"><h3>Notes</h3>${Object.entries(state.notes).filter(([,v]) => v).map(([k,v]) => `<p><b>${esc((p.noteFields || []).find(f => f.key === k)?.label || k)}:</b> ${esc(v)}</p>`).join("") || "<p>No notes recorded.</p>"}</section>
       </div><div class="step-actions"><button class="button light" type="button" data-action="export">Export editable character</button><button class="button primary" type="button" data-action="print">Print / Save PDF</button></div>`;
@@ -794,6 +820,7 @@
       <section class="print-identity">${identity.slice(0, 9).map(([label, value]) => `<div><span>${esc(label)}</span><b>${esc(value)}</b></div>`).join("")}</section>
       <div class="print-title">Attributes</div><div class="print-columns">${groups.filter(g => g.kind === "attribute").map(g => printBlock(groupLabel(g), g.traits.map(t => [traitLabel(g, t, state), current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
       <div class="print-title">Abilities</div><div class="print-columns">${groups.filter(g => g.kind === "ability").map(g => printBlock(groupLabel(g), g.traits.map(t => [traitLabel(g, t, state), current(g.id, t)]).concat((state.customRatings[g.id] || []).map(x => [x.name, Number(x.base || 0) + Number(x.xp || 0)])))).join("")}</div>
+      ${traitSpecializationRows().length ? `<div class="print-title">Specializations</div><div class="print-columns two">${printBlock("Specializations", traitSpecializationRows())}</div>` : ""}
       <div class="print-title">${esc(uiTerm("advantagesPrintTitle", "Advantages"))}</div><div class="print-columns two">${groups.filter(g => !["attribute","ability"].includes(g.kind)).map(g => printBlock(groupLabel(g), reviewRows(g))).join("")}${printBlock(uiTerm("coreRatings", "Core ratings"), specials)}${printBlock("Named traits", items)}</div>
       <div class="print-title page-break">Character and chronicle record</div><div class="print-columns two">${printBlock("Merits", state.merits.map(x => [x.name, String(x.cost)]))}${printBlock("Flaws", state.flaws.map(x => [x.name, String(x.cost)]))}</div>
       <div class="print-columns two" style="margin-top:9px">${Object.entries(state.notes).filter(([,v]) => v).map(([key,value]) => `<section class="print-prose"><h3>${esc((p.noteFields || []).find(f => f.key === key)?.label || key)}</h3><p>${esc(value)}</p></section>`).join("")}</div>
@@ -833,6 +860,8 @@
       const path = el.dataset.bind;
       const value = el.type === "number" ? Number(el.value) : el.value;
       if (path.startsWith("identity.")) changeIdentity(path.slice(9), value); else setPath(path, value);
+    } else if (el.dataset.traitSpecialization) {
+      state.specializations[el.dataset.traitSpecialization] = el.value;
     } else if (el.dataset.uiCustom) {
       state.ui.customNames[el.dataset.uiCustom] = el.value;
     } else if (el.dataset.special) {
@@ -866,7 +895,7 @@
     if (el.dataset.priorityKind) {
       state.priorities[el.dataset.priorityKind][el.dataset.priorityCategory] = el.value;
       commit();
-    } else if (el.dataset.bind || el.dataset.ui || el.dataset.itemField || el.dataset.special || el.dataset.meritsField || el.dataset.flawsField) commit();
+    } else if (el.dataset.bind || el.dataset.ui || el.dataset.itemField || el.dataset.special || el.dataset.traitSpecialization || el.dataset.meritsField || el.dataset.flawsField) commit();
   });
 
   app.addEventListener("click", event => {
